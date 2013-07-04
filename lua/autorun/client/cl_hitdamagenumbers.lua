@@ -161,6 +161,7 @@ end )
 hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function ()
 	
 	if not on then return end
+	if #indicators == 0 then return end
 	
 	local ang = LocalPlayer():EyeAngles()
 	
