@@ -34,7 +34,7 @@ surface.CreateFont( "font_HDN_Inds", {
 local on = true
 concommand.Add( "hitnums_toggle", function()
 	if not GetGlobalBool("HDN_AllowUserToggle") then
-		MsgN("You do not have permission to show/hide Hit Numbers. Server convar 'sv_hitnums_allowusertoggle' is disabled.")
+		MsgN("You do not have permission to hide the Hit Numbers indicators. (Server convar 'sv_hitnums_allowusertoggle' is disabled)")
 		return
 	end
 	
@@ -47,6 +47,13 @@ concommand.Add( "hitnums_toggle", function()
 		MsgN("disabled")
 		table.Empty(indicators)
 	end
+end )
+
+
+net.Receive( "net_HDN_forceToggleOn", function ()
+	
+	on = true
+	
 end )
 
 

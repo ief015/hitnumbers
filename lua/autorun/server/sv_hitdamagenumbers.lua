@@ -1,6 +1,7 @@
 AddCSLuaFile("autorun/client/cl_hitdamagenumbers.lua")
 
 util.AddNetworkString( "net_HDN_createInd" )
+util.AddNetworkString( "net_HDN_forceToggleOn" )
 
 
 local on = true
@@ -13,7 +14,12 @@ end )
 CreateConVar( "sv_hitnums_allowusertoggle", 0 )
 SetGlobalBool("HDN_AllowUserToggle", false)
 cvars.AddChangeCallback( "sv_hitnums_allowusertoggle", function()
-	SetGlobalBool("HDN_AllowUserToggle", GetConVarNumber("sv_hitnums_allowusertoggle") ~= 0)
+	local allow = GetConVarNumber("sv_hitnums_allowusertoggle") ~= 0
+	SetGlobalBool("HDN_AllowUserToggle", allow)
+	if not allow then
+		net.Start("net_HDN_forceToggleOn")
+		net.Broadcast()
+	end
 end )
 
 
