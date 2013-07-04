@@ -30,16 +30,15 @@ surface.CreateFont( "font_HDN_Inds", {
 } )
 
 
-// Client-side Hit Numbers show/hide convar.
+// Client-side Hit Numbers show/hide concommand.
 local on = true
-CreateConVar("hitnums_enable", 1)
-cvars.AddChangeCallback( "hitnums_enable", function()
+concommand.Add( "hitnums_toggle", function()
 	if not GetGlobalBool("HDN_AllowUserToggle") then
 		MsgN("You do not have permission to show/hide Hit Numbers. Server convar 'sv_hitnums_allowusertoggle' is disabled.")
 		return
 	end
 	
-	on = (GetConVarNumber("hitnums_enable") ~= 0)
+	on = not on
 	
 	Msg("Damage indicators ")
 	if on then
@@ -48,7 +47,7 @@ cvars.AddChangeCallback( "hitnums_enable", function()
 		MsgN("disabled")
 		table.Empty(indicators)
 	end
-end)
+end )
 
 
 // Called when an indicator should be created for this player.

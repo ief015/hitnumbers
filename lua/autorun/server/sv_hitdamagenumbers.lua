@@ -38,7 +38,7 @@ cvars.AddChangeCallback( "sv_hitnums_ignorez", function()
 end )
 
 
-hook.Add("EntityTakeDamage", "ihHDN_EntDamage", function (target, dmginfo)
+hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function (target, dmginfo)
 	
 	if not on then return end
 	
@@ -46,7 +46,7 @@ hook.Add("EntityTakeDamage", "ihHDN_EntDamage", function (target, dmginfo)
 	
 	if target:IsValid() then
 		
-		if (showAll or attacker:IsPlayer()) and (!breakablesOnly or target:Health()>0)
+		if (attacker:IsPlayer() or showAll) and (!breakablesOnly or target:Health()>0)
 			and (target:GetCollisionGroup() ~= COLLISION_GROUP_DEBRIS)
 			and (attacker != target or showAll) then
 		
@@ -90,7 +90,7 @@ hook.Add("EntityTakeDamage", "ihHDN_EntDamage", function (target, dmginfo)
 			
 			// Send indicator to player(s).
 			if showAll then
-				if target:IsPlayer() or attacker == target then
+				if target:IsPlayer() then
 					net.SendOmit(target)
 				else
 					net.Broadcast()
@@ -103,4 +103,4 @@ hook.Add("EntityTakeDamage", "ihHDN_EntDamage", function (target, dmginfo)
 		
 	end
 	
-end)
+end )
