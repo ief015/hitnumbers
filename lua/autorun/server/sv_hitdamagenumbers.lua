@@ -46,21 +46,21 @@ end )
 
 
 // Masks.
-local mask_npcs = true
 local mask_players = true
+local mask_npcs = true
 local mask_ragdolls = true
 local mask_vehicles = true
 local mask_props = true
 local mask_world = false
 
-CreateConVar( "sv_hitnums_mask_npcs", 1 )
-cvars.AddChangeCallback( "sv_hitnums_mask_npcs", function()
-	mask_npcs = (GetConVarNumber("sv_hitnums_mask_npcs") ~= 0)
-end )
-
 CreateConVar( "sv_hitnums_mask_players", 1 )
 cvars.AddChangeCallback( "sv_hitnums_mask_players", function()
 	mask_players = (GetConVarNumber("sv_hitnums_mask_players") ~= 0)
+end )
+
+CreateConVar( "sv_hitnums_mask_npcs", 1 )
+cvars.AddChangeCallback( "sv_hitnums_mask_npcs", function()
+	mask_npcs = (GetConVarNumber("sv_hitnums_mask_npcs") ~= 0)
 end )
 
 CreateConVar( "sv_hitnums_mask_ragdolls", 1 )
