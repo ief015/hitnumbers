@@ -92,7 +92,9 @@ function entIsWorld(ent)
 	end
 	
 	local class = ent:GetClass()
+	
 	return string.StartWith(class, "func_")
+		or string.StartWith(class, "prop_door")
 	
 end
 
