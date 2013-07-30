@@ -1,38 +1,66 @@
 local indicators = {}
+local initialized = false
 local lastcurtime = 0
 
-// Damage indicator colours.
-local dmg_cols = {
-	gen =	Color(255, 230, 210),	/* Generic/Bullet damage */
-	crit =	Color(255, 40,   40),	/* Critical hit */
-	fire =	Color(255, 120,   0),	/* Fire damage */
-	expl =	Color(240, 240,  50),	/* Explosion damage */
-	acid =	Color(140, 255,  75),	/* Toxic damage */
-	elec =	Color(100, 160, 255)	/* Electric/Shock damage */
-}
 
-// Font used for indicators.
-surface.CreateFont( "font_HDN_Inds", {
-	font 		= "coolvetica",
-	size 		= 50,
-	weight 		= 800,
-	blursize 	= 0,
-	scanlines 	= 0,
-	antialias 	= false,
-	underline 	= false,
-	italic 		= false,
-	strikeout 	= false,
-	symbol 		= false,
-	rotary 		= false,
-	shadow 		= false,
-	additive 	= false,
-	outline 	= true
-} )
+// Set up hit numbers.
+net.Receive( "net_HDN_initialize", function()
+	
+	surface.CreateFont( "font_HDN_Inds", {
+		font 		= net.ReadString(),
+		size 		= net.ReadUInt(32),
+		weight 		= net.ReadUInt(32),
+		blursize 	= 0,
+		scanlines 	= 0,
+		antialias 	= false,
+		underline 	= (net.ReadBit()~=0),
+		italic 		= (net.ReadBit()~=0),
+		strikeout 	= false,
+		symbol 		= false,
+		rotary 		= false,
+		shadow 		= (net.ReadBit()~=0),
+		additive 	= (net.ReadBit()~=0),
+		outline 	= (net.ReadBit()~=0)
+	} )
+	
+	initialized = true
+	
+end )
+
+
+// Build colour table from server-set colours.
+local function buildColourTable()
+	
+	local dmgCols = {}
+	local col
+	
+	col = GetGlobalVar("HDN_Col_Gen", 16770770)
+	dmgCols.gen = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	
+	col = GetGlobalVar("HDN_Col_Crit", 16721960)
+	dmgCols.crit = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	
+	col = GetGlobalVar("HDN_Col_Fire", 16742400)
+	dmgCols.fire = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	
+	col = GetGlobalVar("HDN_Col_Expl", 15790130)
+	dmgCols.expl = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	
+	col = GetGlobalVar("HDN_Col_Acid", 9240395)
+	dmgCols.acid = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	
+	col = GetGlobalVar("HDN_Col_Elec", 6594815)
+	dmgCols.elec = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	
+	return dmgCols
+	
+end
 
 
 // Client-side Hit Numbers show/hide concommand.
 local on = true
 concommand.Add( "hitnums_toggle", function()
+	
 	if not GetGlobalBool("HDN_AllowUserToggle") then
 		MsgN("You do not have permission to hide the Hit Numbers indicators. (Server convar 'sv_hitnums_allowusertoggle' is disabled)")
 		return
@@ -47,10 +75,11 @@ concommand.Add( "hitnums_toggle", function()
 		MsgN("disabled")
 		table.Empty(indicators)
 	end
+	
 end )
 
 
-net.Receive( "net_HDN_forceToggleOn", function ()
+net.Receive( "net_HDN_forceToggleOn", function()
 	
 	on = true
 	
@@ -58,7 +87,7 @@ end )
 
 
 // Called when an indicator should be created for this player.
-net.Receive( "net_HDN_createInd", function ()
+net.Receive( "net_HDN_createInd", function()
 	
 	if not on then return end
 	local lply = LocalPlayer()
@@ -85,36 +114,38 @@ net.Receive( "net_HDN_createInd", function ()
 	d = math.Clamp(d, 0, 2)
 	
 	// Set properties of this indicator.
-	ind.ttl = 1.0
+	ind.ttl = GetGlobalFloat("HDN_TTL", 1.0)
 	ind.grav = 0.03*d
 	ind.velx = math.Rand(-0.5, 0.5)*d + force.x
 	ind.vely = math.Rand(-0.5, 0.5)*d + force.y
 	ind.velz = math.Rand(1, 2)*d + force.z
 	
 	// Set color of indicator based on damage type (or critical hit).
-	ind.col = (ind.crit and dmg_cols.crit or dmg_cols.gen)
+	local dmgCols = buildColourTable()
+	
+	ind.col = (ind.crit and dmgCols.crit or dmgCols.gen)
 	
 	if not ind.crit then
 		
 		if bit.band(dmgtype, bit.bor(DMG_BURN, DMG_SLOWBURN, DMG_PLASMA)) != 0 then
 			
 			// Fire damage.
-			ind.col = dmg_cols.fire
+			ind.col = dmgCols.fire
 			
 		elseif bit.band(dmgtype, bit.bor(DMG_BLAST, DMG_BLAST_SURFACE)) != 0 then
 			
 			// Explosive damage.
-			ind.col = dmg_cols.expl
+			ind.col = dmgCols.expl
 			
 		elseif bit.band(dmgtype, bit.bor(DMG_ACID, DMG_POISON, DMG_RADIATION, DMG_NERVEGAS)) != 0 then
 			
 			// Acidic damage.
-			ind.col = dmg_cols.acid
+			ind.col = dmgCols.acid
 			
 		elseif bit.band(dmgtype, bit.bor(DMG_DISSOLVE, DMG_ENERGYBEAM, DMG_SHOCK)) != 0 then
 			
 			// Electrical damage.
-			ind.col = dmg_cols.elec
+			ind.col = dmgCols.elec
 			
 		end
 		
@@ -127,7 +158,7 @@ end )
 
 
 // Update indicators.
-hook.Add( "Tick", "hdn_updateInds", function ()
+hook.Add( "Tick", "hdn_updateInds", function()
 
 	if not on then return end
 	
@@ -164,9 +195,10 @@ end )
 
 
 -- Render the 3D indicators.
-hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function ()
+hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	
 	if not on then return end
+	if not initialized then return end
 	if #indicators == 0 then return end
 	
 	local ang = LocalPlayer():EyeAngles()
@@ -179,28 +211,32 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function ()
 		cam.IgnoreZ( true )
 	end
 	
+	local scale = GetGlobalFloat("HDN_Scale", 0.3)
+	local showsign = GetGlobalBool("HDN_ShowSign", true)
+	local ttl = GetGlobalFloat("HDN_TTL", 1.0)
+	
 	surface.SetFont("font_HDN_Inds")
 	
 	local col
 	local txt
 	local width, height
-	for k,v in pairs(indicators) do
+	for _, ind in pairs(indicators) do
 		
-		col = v.col
-		col.a = v.ttl * 255
+		col = ind.col
+		col.a = (ind.ttl / ttl) * 255
 		
 		surface.SetTextColor(col)
 		
-		if v.crit then
-			txt = "Critical " .. tostring(-v.dmg)
+		if ind.crit then
+			txt = "Critical " .. (showsign and tostring(-ind.dmg) or tostring(math.abs(ind.dmg)))
 		else
-			txt = tostring(-v.dmg)
+			txt = (showsign and tostring(-ind.dmg) or tostring(math.abs(ind.dmg)))
 		end
 		
 		txtWidth, txtHeight = surface.GetTextSize(txt)
 		surface.SetTextPos(-txtWidth/2, -txtHeight/2)
 		
-		cam.Start3D2D( v.pos, Angle( 0, ang.y, ang.r ), 0.3 )
+		cam.Start3D2D(ind.pos, Angle( 0, ang.y, ang.r ), scale)
 			surface.DrawText(txt)
 			--draw.DrawText( txt, "font_HDN_Indicators", 0, 0, col, TEXT_ALIGN_CENTER )
 		cam.End3D2D()
