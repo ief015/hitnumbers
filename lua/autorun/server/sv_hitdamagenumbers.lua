@@ -66,6 +66,28 @@ cvars.AddChangeCallback( "sv_hitnums_showsign", function()
 	SetGlobalBool("HDN_ShowSign", GetConVarNumber("sv_hitnums_showsign") ~= 0)
 end )
 
+CreateConVar( "sv_hitnums_alpha", 1.0 )
+SetGlobalFloat( "HDN_AlphaMul", 1 )
+cvars.AddChangeCallback( "sv_hitnums_alpha", function()
+	SetGlobalInt("HDN_AlphaMul", math.Clamp(GetConVarNumber("sv_hitnums_alpha"), 0, 1))
+end )
+
+
+// Critical indicator mode.
+// 0 = No Crit (Damage is shown, but not in critical colour)
+// 1 = "<dmg>" (Damage only, in critical colour)
+// 2 = "Crit!"
+// 3 = "Critical!"
+// 4 = "Crit <dmg>"
+// 5 = "Critical <dmg>"
+// 6 = "Crit!" AND "<dmg>"
+// 7 = "Critical!" AND "<dmg>"
+CreateConVar( "sv_hitnums_critmode", 7 )
+SetGlobalInt( "HDN_CritMode", 7 )
+cvars.AddChangeCallback( "sv_hitnums_critmode", function()
+	SetGlobalInt("HDN_CritMode", GetConVarNumber("sv_hitnums_critmode"))
+end )
+
 
 // Masks.
 local mask_players = true
@@ -274,7 +296,7 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 			
 			// Get damage position.
 			local pos
-			if dmginfo:IsBulletDamage() then
+			if dmginfo:IsBulletDamage()or dmginfo:GetDamageType() == DMG_CLUB then
 				pos = dmginfo:GetDamagePosition()
 			else
 				if target:IsPlayer() or target:IsNPC() then

@@ -34,25 +34,50 @@ local function buildColourTable()
 	local dmgCols = {}
 	local col
 	
-	col = GetGlobalVar("HDN_Col_Gen", 16770770)
+	col = GetGlobalInt("HDN_Col_Gen", 16770770)
 	dmgCols.gen = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
-	col = GetGlobalVar("HDN_Col_Crit", 16721960)
+	col = GetGlobalInt("HDN_Col_Crit", 16721960)
 	dmgCols.crit = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
-	col = GetGlobalVar("HDN_Col_Fire", 16742400)
+	col = GetGlobalInt("HDN_Col_Fire", 16742400)
 	dmgCols.fire = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
-	col = GetGlobalVar("HDN_Col_Expl", 15790130)
+	col = GetGlobalInt("HDN_Col_Expl", 15790130)
 	dmgCols.expl = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
-	col = GetGlobalVar("HDN_Col_Acid", 9240395)
+	col = GetGlobalInt("HDN_Col_Acid", 9240395)
 	dmgCols.acid = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
-	col = GetGlobalVar("HDN_Col_Elec", 6594815)
+	col = GetGlobalInt("HDN_Col_Elec", 6594815)
 	dmgCols.elec = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 	return dmgCols
+	
+end
+
+
+local function spawnIndicator(text, col, pos, force)
+	
+	local lply = LocalPlayer()
+	if not lply:IsValid() then return end
+	
+	local ind = {}
+	
+	ind.text = text
+	ind.col = Color(col.r, col.g, col.b)
+	ind.pos = Vector(pos.x, pos.y, pos.z)
+	ind.ttl = GetGlobalFloat("HDN_TTL", 1.0)
+	
+	--local d = pos:Distance(lply:GetPos())/200
+	--d = math.Clamp(d, 0, 2)
+	--ind.grav = 0.03*d
+	
+	--ind.vel = Vector(math.Rand(-0.5, 0.5)*d + force.x, math.Rand(-0.5, 0.5)*d + force.y, math.Rand(1, 2)*d + force.z)
+	
+	ind.vel = Vector(math.Rand(-0.75, 0.75) + force.x, math.Rand(-0.75, 0.75) + force.y, math.Rand(3, 6) + force.z)
+	
+	table.insert(indicators, ind)
 	
 end
 
@@ -90,9 +115,6 @@ end )
 net.Receive( "net_HDN_createInd", function()
 	
 	if not on then return end
-	local lply = LocalPlayer()
-	
-	if not lply:IsValid() then return end
 	
 	local ind = {}
 	
@@ -100,59 +122,78 @@ net.Receive( "net_HDN_createInd", function()
 	local dmg = net.ReadFloat()
 	local dmgtype = net.ReadUInt(32)
 	
-	if dmg < 1 then ind.dmg = math.Round(dmg, 3) 
-	else ind.dmg = math.floor(dmg) end
+	if dmg < 1 then dmg = math.Round(dmg, 3) 
+	else dmg = math.floor(dmg) end
 	
 	// Get "critical hit" bit.
-	ind.crit = (net.ReadBit()==1)
+	local crit = (net.ReadBit() ~= 0)
 	
 	// Retreive position and force of the damage.
-	ind.pos = net.ReadVector()
+	local pos = net.ReadVector()
 	local force = net.ReadVector()
-	
-	local d = ind.pos:Distance(lply:GetPos())/200
-	d = math.Clamp(d, 0, 2)
-	
-	// Set properties of this indicator.
-	ind.ttl = GetGlobalFloat("HDN_TTL", 1.0)
-	ind.grav = 0.03*d
-	ind.velx = math.Rand(-0.5, 0.5)*d + force.x
-	ind.vely = math.Rand(-0.5, 0.5)*d + force.y
-	ind.velz = math.Rand(1, 2)*d + force.z
 	
 	// Set color of indicator based on damage type (or critical hit).
 	local dmgCols = buildColourTable()
+	local col = dmgCols.gen
 	
-	ind.col = (ind.crit and dmgCols.crit or dmgCols.gen)
+	local showsign = GetGlobalBool("HDN_ShowSign", true)
+	local critmode = GetGlobalInt("HDN_CritMode", 5) /* See "Critical indicator mode" in sv_hitdamagenumbers.lua */
 	
-	if not ind.crit then
+	if crit and critmode >= 2 then
 		
-		if bit.band(dmgtype, bit.bor(DMG_BURN, DMG_SLOWBURN, DMG_PLASMA)) != 0 then
-			
-			// Fire damage.
-			ind.col = dmgCols.fire
-			
-		elseif bit.band(dmgtype, bit.bor(DMG_BLAST, DMG_BLAST_SURFACE)) != 0 then
-			
-			// Explosive damage.
-			ind.col = dmgCols.expl
-			
-		elseif bit.band(dmgtype, bit.bor(DMG_ACID, DMG_POISON, DMG_RADIATION, DMG_NERVEGAS)) != 0 then
-			
-			// Acidic damage.
-			ind.col = dmgCols.acid
-			
-		elseif bit.band(dmgtype, bit.bor(DMG_DISSOLVE, DMG_ENERGYBEAM, DMG_SHOCK)) != 0 then
-			
-			// Electrical damage.
-			ind.col = dmgCols.elec
-			
+		local txt
+		
+		if critmode == 2 or critmode == 6 then
+			txt = "Crit!"
+		elseif critmode == 3 or critmode == 7 then
+			txt = "Critical!"
+		elseif critmode == 4 then
+			txt = "Crit " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
+		elseif critmode == 5 then
+			txt = "Critical " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
 		end
+		
+		spawnIndicator(txt, dmgCols.crit, pos, force)
 		
 	end
 	
-	// Add new indicator.
-	table.insert(indicators, ind)
+	if not crit or critmode == 0 or critmode == 1 or critmode == 6 or critmode == 7 then
+		
+		local txt = ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
+		
+		if crit and critmode == 1 then
+			
+			col = dmgCols.crit
+			
+		else
+			
+			if bit.band(dmgtype, bit.bor(DMG_BURN, DMG_SLOWBURN, DMG_PLASMA)) != 0 then
+				
+				// Fire damage.
+				col = dmgCols.fire
+				
+			elseif bit.band(dmgtype, bit.bor(DMG_BLAST, DMG_BLAST_SURFACE)) != 0 then
+				
+				// Explosive damage.
+				col = dmgCols.expl
+				
+			elseif bit.band(dmgtype, bit.bor(DMG_ACID, DMG_POISON, DMG_RADIATION, DMG_NERVEGAS)) != 0 then
+				
+				// Acidic damage.
+				col = dmgCols.acid
+				
+			elseif bit.band(dmgtype, bit.bor(DMG_DISSOLVE, DMG_ENERGYBEAM, DMG_SHOCK)) != 0 then
+				
+				// Electrical damage.
+				col = dmgCols.elec
+				
+			end
+			
+		end
+		
+		spawnIndicator(txt, col, pos, force)
+		
+	end
 	
 end )
 
@@ -167,15 +208,15 @@ hook.Add( "Tick", "hdn_updateInds", function()
 	lastcurtime = curtime
 	
 	// Update hit texts.
-	for k,v in pairs(indicators) do
+	for _, ind in pairs(indicators) do
 		
-		v.ttl = v.ttl - dt
+		ind.ttl = ind.ttl - dt
 		
-		v.velz = math.Min(v.velz - v.grav, 1)
+		ind.vel.z = math.Min(ind.vel.z - 0.05, 1)
 		
-		v.pos.x = v.pos.x + v.velx
-		v.pos.y = v.pos.y + v.vely
-		v.pos.z = v.pos.z + v.velz
+		ind.pos.x = ind.pos.x + ind.vel.x
+		ind.pos.y = ind.pos.y + ind.vel.y
+		ind.pos.z = ind.pos.z + ind.vel.z
 		
 	end
 	
@@ -212,33 +253,22 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	end
 	
 	local scale = GetGlobalFloat("HDN_Scale", 0.3)
-	local showsign = GetGlobalBool("HDN_ShowSign", true)
 	local ttl = GetGlobalFloat("HDN_TTL", 1.0)
+	local alphamul = GetGlobalFloat("HDN_AlphaMul", 1) * 255
 	
 	surface.SetFont("font_HDN_Inds")
 	
-	local col
-	local txt
 	local width, height
 	for _, ind in pairs(indicators) do
 		
-		col = ind.col
-		col.a = (ind.ttl / ttl) * 255
+		ind.col.a = (ind.ttl / ttl) * alphamul
+		surface.SetTextColor(ind.col)
 		
-		surface.SetTextColor(col)
-		
-		if ind.crit then
-			txt = "Critical " .. (showsign and tostring(-ind.dmg) or tostring(math.abs(ind.dmg)))
-		else
-			txt = (showsign and tostring(-ind.dmg) or tostring(math.abs(ind.dmg)))
-		end
-		
-		txtWidth, txtHeight = surface.GetTextSize(txt)
+		txtWidth, txtHeight = surface.GetTextSize(ind.text)
 		surface.SetTextPos(-txtWidth/2, -txtHeight/2)
 		
 		cam.Start3D2D(ind.pos, Angle( 0, ang.y, ang.r ), scale)
-			surface.DrawText(txt)
-			--draw.DrawText( txt, "font_HDN_Indicators", 0, 0, col, TEXT_ALIGN_CENTER )
+			surface.DrawText(ind.text)
 		cam.End3D2D()
 	end
 	
