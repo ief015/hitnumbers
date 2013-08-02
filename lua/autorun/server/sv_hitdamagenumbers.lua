@@ -66,12 +66,12 @@ cvars.AddChangeCallback( "sv_hitnums_showsign", function()
 	SetGlobalBool("HDN_ShowSign", GetConVarNumber("sv_hitnums_showsign") ~= 0)
 end )
 
+// Transparency/Alpha multiplier.
 CreateConVar( "sv_hitnums_alpha", 1.0 )
-SetGlobalFloat( "HDN_AlphaMul", 1 )
+SetGlobalFloat( "HDN_AlphaMul", 1.0 )
 cvars.AddChangeCallback( "sv_hitnums_alpha", function()
 	SetGlobalInt("HDN_AlphaMul", math.Clamp(GetConVarNumber("sv_hitnums_alpha"), 0, 1))
 end )
-
 
 // Critical indicator mode.
 // 0 = No Crit (Damage is shown, but not in critical colour)

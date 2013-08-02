@@ -57,25 +57,23 @@ local function buildColourTable()
 end
 
 
-local function spawnIndicator(text, col, pos, force)
-	
-	local lply = LocalPlayer()
-	if not lply:IsValid() then return end
+local function spawnIndicator(text, col, pos, vel, ttl)
 	
 	local ind = {}
 	
 	ind.text = text
-	ind.col = Color(col.r, col.g, col.b)
 	ind.pos = Vector(pos.x, pos.y, pos.z)
-	ind.ttl = GetGlobalFloat("HDN_TTL", 1.0)
+	ind.vel = Vector(vel.x, vel.y, vel.z)
+	ind.col = Color(col.r, col.g, col.b)
 	
-	--local d = pos:Distance(lply:GetPos())/200
-	--d = math.Clamp(d, 0, 2)
-	--ind.grav = 0.03*d
+	ind.ttl = ttl
+	ind.life = ttl
 	
-	--ind.vel = Vector(math.Rand(-0.5, 0.5)*d + force.x, math.Rand(-0.5, 0.5)*d + force.y, math.Rand(1, 2)*d + force.z)
+	surface.SetFont("font_HDN_Inds")
+	local w, h = surface.GetTextSize(text)
 	
-	ind.vel = Vector(math.Rand(-0.75, 0.75) + force.x, math.Rand(-0.75, 0.75) + force.y, math.Rand(3, 6) + force.z)
+	ind.widthH = w/2
+	ind.heightH = h/2
 	
 	table.insert(indicators, ind)
 	
@@ -136,6 +134,7 @@ net.Receive( "net_HDN_createInd", function()
 	local dmgCols = buildColourTable()
 	local col = dmgCols.gen
 	
+	local ttl = GetGlobalFloat("HDN_TTL", 1.0)
 	local showsign = GetGlobalBool("HDN_ShowSign", true)
 	local critmode = GetGlobalInt("HDN_CritMode", 5) /* See "Critical indicator mode" in sv_hitdamagenumbers.lua */
 	
@@ -144,16 +143,24 @@ net.Receive( "net_HDN_createInd", function()
 		local txt
 		
 		if critmode == 2 or critmode == 6 then
+			
 			txt = "Crit!"
+			
 		elseif critmode == 3 or critmode == 7 then
+			
 			txt = "Critical!"
+			
 		elseif critmode == 4 then
+			
 			txt = "Crit " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
+			
 		elseif critmode == 5 then
+			
 			txt = "Critical " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
+			
 		end
 		
-		spawnIndicator(txt, dmgCols.crit, pos, force)
+		spawnIndicator(txt, dmgCols.crit, pos, force + Vector(math.Rand(-0.5, 0.5), math.Rand(-0.5, 0.5), math.Rand(1.1, 1.4)), ttl)
 		
 	end
 	
@@ -191,7 +198,7 @@ net.Receive( "net_HDN_createInd", function()
 			
 		end
 		
-		spawnIndicator(txt, col, pos, force)
+		spawnIndicator(txt, col, pos, force + Vector(math.Rand(-0.5, 0.5), math.Rand(-0.5, 0.5), math.Rand(0.75, 1.0)), ttl)
 		
 	end
 	
@@ -210,9 +217,10 @@ hook.Add( "Tick", "hdn_updateInds", function()
 	// Update hit texts.
 	for _, ind in pairs(indicators) do
 		
-		ind.ttl = ind.ttl - dt
-		
-		ind.vel.z = math.Min(ind.vel.z - 0.05, 1)
+		ind.life = ind.life - dt
+	
+		--ind.vel.z = math.Min(ind.vel.z - 0.05, 2)
+		ind.vel.z = ind.vel.z - 0.05
 		
 		ind.pos.x = ind.pos.x + ind.vel.x
 		ind.pos.y = ind.pos.y + ind.vel.y
@@ -223,13 +231,11 @@ hook.Add( "Tick", "hdn_updateInds", function()
 	// Check for and remove expired hit texts.
 	local i = 1
 	while i <= #indicators do
-		
-		if indicators[i].ttl < 0 then
+		if indicators[i].life < 0 then
 			table.remove(indicators, i)
 		else
 			i = i + 1
 		end
-		
 	end
 	
 end )
@@ -242,10 +248,11 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	if not initialized then return end
 	if #indicators == 0 then return end
 	
-	local ang = LocalPlayer():EyeAngles()
-	
+	local observer = ( LocalPlayer():GetViewEntity() or LocalPlayer() )
+	local ang = observer:EyeAngles()
 	ang:RotateAroundAxis( ang:Forward(), 90 )
 	ang:RotateAroundAxis( ang:Right(), 90 )
+	ang = Angle( 0, ang.y, ang.r )
 	
 	local ignorez = GetGlobalBool("HDN_IgnoreZ", false)
 	if ignorez then
@@ -253,21 +260,18 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	end
 	
 	local scale = GetGlobalFloat("HDN_Scale", 0.3)
-	local ttl = GetGlobalFloat("HDN_TTL", 1.0)
 	local alphamul = GetGlobalFloat("HDN_AlphaMul", 1) * 255
 	
 	surface.SetFont("font_HDN_Inds")
 	
-	local width, height
 	for _, ind in pairs(indicators) do
 		
-		ind.col.a = (ind.ttl / ttl) * alphamul
+		ind.col.a = (ind.life / ind.ttl) * alphamul
 		surface.SetTextColor(ind.col)
 		
-		txtWidth, txtHeight = surface.GetTextSize(ind.text)
-		surface.SetTextPos(-txtWidth/2, -txtHeight/2)
+		surface.SetTextPos(-ind.widthH, -ind.heightH)
 		
-		cam.Start3D2D(ind.pos, Angle( 0, ang.y, ang.r ), scale)
+		cam.Start3D2D(ind.pos, ang, scale)
 			surface.DrawText(ind.text)
 		cam.End3D2D()
 	end
