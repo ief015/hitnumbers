@@ -59,6 +59,8 @@ end
 
 local function spawnIndicator(text, col, pos, vel, ttl)
 	
+	if not initialized then return end
+	
 	local ind = {}
 	
 	ind.text = text
