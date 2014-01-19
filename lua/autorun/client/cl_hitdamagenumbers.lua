@@ -4,7 +4,7 @@ local lastcurtime = 0
 
 
 // Set up hit numbers.
-net.Receive( "net_HDN_initialize", function()
+net.Receive( "hdn_initPly", function()
 	
 	surface.CreateFont( "font_HDN_Inds", {
 		font 		= net.ReadString(),
@@ -112,7 +112,7 @@ end )
 
 
 // Called when an indicator should be created for this player.
-net.Receive( "net_HDN_createInd", function()
+net.Receive( "hdn_spawn", function()
 	
 	if not on then return end
 	
@@ -282,4 +282,6 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 		cam.IgnoreZ( false )
 	end
 	
-end );
+end )
+
+MsgN("-- Hit Numbers loaded --")

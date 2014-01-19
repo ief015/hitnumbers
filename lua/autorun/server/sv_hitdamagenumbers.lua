@@ -1,8 +1,8 @@
 AddCSLuaFile("autorun/client/cl_hitdamagenumbers.lua")
 
-util.AddNetworkString( "net_HDN_initialize" )
-util.AddNetworkString( "net_HDN_createInd" )
-util.AddNetworkString( "net_HDN_forceToggleOn" )
+util.AddNetworkString( "hdn_initPly" )
+util.AddNetworkString( "hdn_spawn" )
+util.AddNetworkString( "hdn_forceToggleOn" )
 
 
 // Enable/Disable this addon globally.
@@ -19,7 +19,7 @@ cvars.AddChangeCallback( "sv_hitnums_allowusertoggle", function()
 	local allow = (GetConVarNumber("sv_hitnums_allowusertoggle") ~= 0)
 	SetGlobalBool("HDN_AllowUserToggle", allow)
 	if not allow then
-		net.Start("net_HDN_forceToggleOn")
+		net.Start("hdn_forceToggleOn")
 		net.Broadcast()
 	end
 end )
@@ -239,9 +239,42 @@ local function entIsProp(ent)
 end
 
 
+local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit, target, reciever)
+	
+	net.Start("hdn_spawn")
+	
+	// Damage amount.
+	net.WriteFloat(dmgAmount)
+	
+	// Type of damage.
+	net.WriteUInt(dmgType, 32)
+	
+	// Is critical.
+	net.WriteBit(isCrit)
+	
+	// Damage position.
+	net.WriteVector(dmgPosition)
+	
+	// Force of damage.
+	net.WriteVector(dmgForce)
+	
+	// Send indicator to reciever, else all players.
+	if reciever == nil then
+		if target == nil then
+			net.Broadcast()
+		else
+			net.SendOmit(target)
+		end
+	else
+		net.Send(reciever)
+	end
+	
+end
+
+
 hook.Add( "PlayerAuthed", "hdn_initializePlayer", function(pl)
 	
-	net.Start("net_HDN_initialize")
+	net.Start("hdn_initPly")
 
 	net.WriteString(font_name)
 	net.WriteUInt(font_size, 32)
@@ -265,48 +298,54 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 	
 	if target:IsValid() then
 		
-		if  ( attacker:IsPlayer() or showAll )
+		local attackerIsPlayer = attacker:IsPlayer()
+		
+		if  ( attackerIsPlayer or showAll )
 		and ( !breakablesOnly or target:Health() > 0 )
 		and ( target:GetCollisionGroup() ~= COLLISION_GROUP_DEBRIS )
 		and ( attacker != target or showAll )
 		then
 			
+			local targetIsPlayer = target:IsPlayer()
+			local targetIsNPC    = target:IsNPC()
+			
 			// Check masks.
-			if ( !mask_players and target:IsPlayer() )
-			or ( !mask_npcs and target:IsNPC() )
+			if ( !mask_players and targetIsPlayer )
+			or ( !mask_npcs and targetIsNPC )
 			or ( !mask_ragdolls and target:IsRagdoll() )
 			or ( !mask_vehicles and target:IsVehicle() )
 			or ( !mask_props and entIsProp(target) )
 			or ( !mask_world and entIsWorld(target) )
-			then
-				return
-			end
+			then return end
 			
-			net.Start("net_HDN_createInd")
-			
-			// Damage amount.
-			net.WriteFloat(dmginfo:GetDamage())
-			
-			// Type of damage.
-			net.WriteUInt(dmginfo:GetDamageType(), 32)
-			
-			// Is it a critical hit? (For players and npcs only)
-			net.WriteBit( (dmginfo:GetDamage() >= target:GetMaxHealth())
-						and (target:IsPlayer() or target:IsNPC()) )
+			local dmgAmount = dmginfo:GetDamage()
+			local dmgType   = dmginfo:GetDamageType()
 			
 			// Get damage position.
-			local pos
-			if dmginfo:IsBulletDamage()or dmginfo:GetDamageType() == DMG_CLUB then
+			local pos = nil
+			if dmginfo:IsBulletDamage() then
+				
 				pos = dmginfo:GetDamagePosition()
-			else
-				if target:IsPlayer() or target:IsNPC() then
-					pos = target:GetPos() + Vector(0,0,48)
-				else
-					pos = target:GetPos()
-				end
+				
+			elseif (attackerIsPlayer or attacker:IsNPC()) and (dmgType == DMG_CLUB or dmgType == DMG_SLASH) then
+				
+				pos = util.TraceHull({
+					start  = attacker:GetShootPos(),
+					endpos = attacker:GetShootPos() + (attacker:GetAimVector() * 100),
+					filter = attacker,
+					mins   = Vector(-10,-10,-10),
+					maxs   = Vector( 10, 10, 10),
+					mask   = MASK_SHOT_HULL,
+				}).HitPos
 				
 			end
-			net.WriteVector(pos)
+			
+			if pos == nil then
+				
+				// Default damage position if no damage position could be calculated.
+				pos = target:LocalToWorld(target:OBBCenter())
+				
+			end
 			
 			// Get force of damage.
 			local force
@@ -318,17 +357,20 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 			force.x = math.Clamp(force.x, -1, 1)
 			force.y = math.Clamp(force.y, -1, 1)
 			force.z = math.Clamp(force.z, -1, 1)
-			net.WriteVector(force)
 			
-			// Send indicator to player(s).
+			// Is it a critical hit? (For players and npcs only)
+			local isCrit = (dmgAmount >= target:GetMaxHealth()) and
+			               (targetIsPlayer or targetIsNPC)
+			
+			// Create and send the indicator to players.
 			if showAll then
-				if target:IsPlayer() then
-					net.SendOmit(target)
+				if targetIsPlayer then
+					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, nil)
 				else
-					net.Broadcast()
+					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, nil, nil)
 				end
 			else
-				net.Send(attacker)
+				spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, attacker)
 			end
 			
 		end
@@ -336,3 +378,5 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 	end
 	
 end )
+
+MsgN("-- Hit Numbers loaded --")
