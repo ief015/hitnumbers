@@ -241,7 +241,7 @@ end
 
 local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit, target, reciever)
 	
-	net.Start("hdn_spawn")
+	net.Start("hdn_spawn", true)
 	
 	// Damage amount.
 	net.WriteFloat(dmgAmount)
@@ -270,6 +270,60 @@ local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit,
 	end
 	
 end
+
+
+local function loadSettings()
+	
+	if file.Exists('hitnumbers/settings.txt', 'DATA') then
+		
+		local t = util.JSONToTable(file.Read('hitnumbers/settings.txt', 'DATA') or "{}")
+		
+		if t == nil then
+			MsgN("Hit Numbers settings file ('hitnumbers/settings.txt') appears to be corrupt.")
+		end
+		
+		for k,v in pairs(t) do
+			RunConsoleCommand('sv_hitnums_' .. k, v)
+		end
+		
+		return true
+		
+	end
+	
+	return false
+end
+
+
+local function saveSettings()
+	
+	if not file.Exists('hitnumbers', 'DATA') then
+		file.CreateDir('hitnumbers')
+	end
+	
+	local t = {}
+	
+	for k,v in ipairs({
+		'enable', 'allowusertoggle', 'showalldamage', 'breakablesonly', 'ignorez', 'scale', 'ttl', 'showsign', 'alpha', 'critmode',
+		'mask_players', 'mask_npcs', 'mask_ragdolls', 'mask_vehicles', 'mask_props', 'mask_world',
+		'font_name', 'font_size', 'font_weight', 'font_underline', 'font_italic', 'font_shadow', 'font_additive', 'font_outline',
+		'color_generic', 'color_critical', 'color_fire', 'color_explosion', 'color_acid', 'color_electric', 
+	}) do
+		
+		t[v] = GetConVarString('sv_hitnums_' .. v)
+		
+	end
+	
+	
+	file.Write('hitnumbers/settings.txt', util.TableToJSON(t))
+	
+end
+
+
+hook.Add( "ShutDown", "hdn_saveSettings", function()
+	
+	saveSettings()
+	
+end)
 
 
 hook.Add( "PlayerAuthed", "hdn_initializePlayer", function(pl)
@@ -379,4 +433,8 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 	
 end )
 
+-- Load server settings.
+if not loadSettings() then
+	saveSettings()
+end
 MsgN("-- Hit Numbers loaded --")

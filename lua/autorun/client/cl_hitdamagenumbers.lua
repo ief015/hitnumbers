@@ -1,29 +1,26 @@
 local indicators = {}
 local initialized = false
 local lastcurtime = 0
+local on = true
 
 
-// Set up hit numbers.
-net.Receive( "hdn_initPly", function()
+// Client-side Hit Numbers show/hide concommand.
+concommand.Add( "hitnums_toggle", function()
 	
-	surface.CreateFont( "font_HDN_Inds", {
-		font 		= net.ReadString(),
-		size 		= net.ReadUInt(32),
-		weight 		= net.ReadUInt(32),
-		blursize 	= 0,
-		scanlines 	= 0,
-		antialias 	= false,
-		underline 	= (net.ReadBit()~=0),
-		italic 		= (net.ReadBit()~=0),
-		strikeout 	= false,
-		symbol 		= false,
-		rotary 		= false,
-		shadow 		= (net.ReadBit()~=0),
-		additive 	= (net.ReadBit()~=0),
-		outline 	= (net.ReadBit()~=0)
-	} )
+	if not GetGlobalBool("HDN_AllowUserToggle") then
+		LocalPlayer():PrintMessage( HUD_PRINTTALK, "You do not have permission to hide the Hit Numbers indicators." )
+		MsgN("You do not have permission to hide the Hit Numbers indicators. (Server convar 'sv_hitnums_allowusertoggle' is disabled)")
+		return
+	end
 	
-	initialized = true
+	on = not on
+	
+	if on then
+		LocalPlayer():PrintMessage( HUD_PRINTTALK, "Damage indicators enabled." )
+	else
+		LocalPlayer():PrintMessage( HUD_PRINTTALK, "Damage indicators disabled." )
+		table.Empty(indicators)
+	end
 	
 end )
 
@@ -82,29 +79,46 @@ local function spawnIndicator(text, col, pos, vel, ttl)
 end
 
 
-// Client-side Hit Numbers show/hide concommand.
-local on = true
-concommand.Add( "hitnums_toggle", function()
+local function populateSettingsPlayer(panel)
 	
-	if not GetGlobalBool("HDN_AllowUserToggle") then
-		MsgN("You do not have permission to hide the Hit Numbers indicators. (Server convar 'sv_hitnums_allowusertoggle' is disabled)")
-		return
+	if GetGlobalBool("HDN_AllowUserToggle") then
+		
+		panel:AddControl("Button", {
+			Label = "Toggle Hit Numbers",
+			Command = "hitnums_toggle",
+		})
+		
 	end
 	
-	on = not on
+end
+
+
+-- Set up hit numbers.
+net.Receive( "hdn_initPly", function()
 	
-	Msg("Damage indicators ")
-	if on then
-		MsgN("enabled")
-	else
-		MsgN("disabled")
-		table.Empty(indicators)
-	end
+	surface.CreateFont( "font_HDN_Inds", {
+		font 		= net.ReadString(),
+		size 		= net.ReadUInt(32),
+		weight 		= net.ReadUInt(32),
+		blursize 	= 0,
+		scanlines 	= 0,
+		antialias 	= false,
+		underline 	= (net.ReadBit()~=0),
+		italic 		= (net.ReadBit()~=0),
+		strikeout 	= false,
+		symbol 		= false,
+		rotary 		= false,
+		shadow 		= (net.ReadBit()~=0),
+		additive 	= (net.ReadBit()~=0),
+		outline 	= (net.ReadBit()~=0)
+	} )
+	
+	initialized = true
 	
 end )
 
 
-net.Receive( "net_HDN_forceToggleOn", function()
+net.Receive( "hdn_forceToggleOn", function()
 	
 	on = true
 	
@@ -266,16 +280,23 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	
 	surface.SetFont("font_HDN_Inds")
 	
+	local cam_Start3D2D        = cam.Start3D2D
+	local cam_End3D2D          = cam.End3D2D
+	local surface_SetTextColor = surface.SetTextColor
+	local surface_SetTextPos   = surface.SetTextPos
+	local surface_DrawText     = surface.DrawText
+	
 	for _, ind in pairs(indicators) do
 		
-		ind.col.a = (ind.life / ind.ttl) * alphamul
-		surface.SetTextColor(ind.col)
+		cam_Start3D2D(ind.pos, ang, scale)
+			ind.col.a = (ind.life / ind.ttl) * alphamul
+			surface_SetTextColor(ind.col)
+			
+			surface_SetTextPos(-ind.widthH, -ind.heightH)
 		
-		surface.SetTextPos(-ind.widthH, -ind.heightH)
+			surface_DrawText(ind.text)
+		cam_End3D2D()
 		
-		cam.Start3D2D(ind.pos, ang, scale)
-			surface.DrawText(ind.text)
-		cam.End3D2D()
 	end
 	
 	if ignorez then
@@ -283,5 +304,13 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	end
 	
 end )
+
+
+-- Spawn Menu settings for Sandbox gamemodes.
+hook.Add("PopulateToolMenu", "hdn_spawnMenu", function()
+	
+	spawnmenu.AddToolMenuOption("Utilities", "Hit Numbers", "hdn_playerSpawnMenuSettings", "Player", "", "", populateSettingsPlayer)
+	
+end)
 
 MsgN("-- Hit Numbers loaded --")
