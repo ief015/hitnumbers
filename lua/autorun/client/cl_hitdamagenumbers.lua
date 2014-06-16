@@ -130,13 +130,11 @@ net.Receive( "hdn_spawn", function()
 	
 	if not on then return end
 	
-	local ind = {}
-	
 	// Get damage type and amount.
 	local dmg = net.ReadFloat()
 	local dmgtype = net.ReadUInt(32)
 	
-	if dmg < 1 then dmg = math.Round(dmg, 3) 
+	if dmg < 1 then dmg = math.Round(dmg, 3)
 	else dmg = math.floor(dmg) end
 	
 	// Get "critical hit" bit.
@@ -264,7 +262,7 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	if not initialized then return end
 	if #indicators == 0 then return end
 	
-	local observer = ( LocalPlayer():GetViewEntity() or LocalPlayer() )
+	local observer = (LocalPlayer():GetViewEntity() or LocalPlayer())
 	local ang = observer:EyeAngles()
 	ang:RotateAroundAxis( ang:Forward(), 90 )
 	ang:RotateAroundAxis( ang:Right(), 90 )
@@ -272,7 +270,7 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	
 	local ignorez = GetGlobalBool("HDN_IgnoreZ", false)
 	if ignorez then
-		cam.IgnoreZ( true )
+		cam.IgnoreZ(true)
 	end
 	
 	local scale = GetGlobalFloat("HDN_Scale", 0.3)
@@ -286,21 +284,22 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	local surface_SetTextPos   = surface.SetTextPos
 	local surface_DrawText     = surface.DrawText
 	
+	local color
+	
 	for _, ind in pairs(indicators) do
 		
-		cam_Start3D2D(ind.pos, ang, scale)
-			ind.col.a = (ind.life / ind.ttl) * alphamul
-			surface_SetTextColor(ind.col)
-			
-			surface_SetTextPos(-ind.widthH, -ind.heightH)
+		color = ind.col
 		
+		cam_Start3D2D(ind.pos, ang, scale)
+			surface_SetTextColor(color.r, color.g, color.b, (ind.life / ind.ttl * alphamul))
+			surface_SetTextPos(-ind.widthH, -ind.heightH)
 			surface_DrawText(ind.text)
 		cam_End3D2D()
 		
 	end
 	
 	if ignorez then
-		cam.IgnoreZ( false )
+		cam.IgnoreZ(false)
 	end
 	
 end )
