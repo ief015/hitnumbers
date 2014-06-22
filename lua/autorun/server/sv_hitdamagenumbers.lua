@@ -217,6 +217,18 @@ cvars.AddChangeCallback( "sv_hitnums_color_electric", function()
 end )
 
 
+local nWarnings = 0
+
+local function printWarning(msg)
+	
+	MsgC(Color(255, 50, 0), "WARNING: ")
+	Msg(tostring(msg))
+	
+	nWarnings = nWarnings + 1
+	
+end
+
+
 local function entIsWorld(ent)
 	
 	if ent:IsWorld() then
@@ -276,10 +288,17 @@ local function loadSettings()
 	
 	if file.Exists('hitnumbers/settings.txt', 'DATA') then
 		
-		local t = util.JSONToTable(file.Read('hitnumbers/settings.txt', 'DATA') or "{}")
+		local data = file.Read('hitnumbers/settings.txt', 'DATA')
+		
+		local t = util.JSONToTable(data or "{}")
 		
 		if t == nil then
-			MsgN("Hit Numbers settings file ('hitnumbers/settings.txt') appears to be corrupt.")
+			printWarning("Hit Numbers settings file ('data/hitnumbers/settings.txt') appears to be corrupt and won't be loaded. Please validate that the file is in proper JSON format! In the meantime, a backup of the settings file has been saved. ('data/hitnumbers/settings.backup.txt')\n")
+			
+			file.Write('hitnumbers/settings.backup.txt', data);
+			
+			// Build a new settings file.
+			return false
 		end
 		
 		for k,v in pairs(t) do
@@ -290,6 +309,7 @@ local function loadSettings()
 		
 	end
 	
+	// No settings file exists.
 	return false
 end
 
@@ -312,7 +332,6 @@ local function saveSettings()
 		t[v] = GetConVarString('sv_hitnums_' .. v)
 		
 	end
-	
 	
 	file.Write('hitnumbers/settings.txt', util.TableToJSON(t))
 	
@@ -437,4 +456,10 @@ end )
 if not loadSettings() then
 	saveSettings()
 end
-MsgN("-- Hit Numbers loaded --")
+
+Msg("-- Hit Numbers loaded --")
+if nWarnings > 0 then
+	MsgN(" (with " .. nWarnings .. " warning" .. (nWarnings == 1 and "" or "s") .. ")")
+else
+	MsgN()
+end
