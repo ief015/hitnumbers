@@ -3,8 +3,45 @@ local initialized = false
 local lastcurtime = 0
 local on = true
 
+local CRIT_MODE = {}
+CRIT_MODE.NONE                = 0
+CRIT_MODE.DMG_ONLY            = 1
+CRIT_MODE.CRIT_ONLY           = 2
+CRIT_MODE.CRITICAL_ONLY       = 3
+CRIT_MODE.CRIT_AND_DMG        = 4
+CRIT_MODE.CRITICAL_AND_DMG    = 5
+CRIT_MODE.CRIT_AND_DMG_EX     = 6
+CRIT_MODE.CRITICAL_AND_DMG_EX = 7
 
-// Client-side Hit Numbers show/hide concommand.
+local function invlerp(min, max, p)
+--	if max-min == 0 then return 0 end
+	return (p - min) / (max - min)
+end
+
+local ANIMATION_FUNC = {}
+ANIMATION_FUNC[1] = function(p)
+	if p <= 0.2 then
+		local x = invlerp(0, 0.2, p)
+		return x*3*0.25 + 0.25
+	else
+		local x = invlerp(0.2, 1, p)
+		return ((-x + 1) / 2) + 0.5
+	end
+end
+ANIMATION_FUNC[2] = function(p)
+	if p <= 0.2 then
+		local x = invlerp(0, 0.2, p)
+		return x*3*0.25 + 0.25
+	else
+		return 1
+	end
+end
+ANIMATION_FUNC[3] = function(p)
+	return 1-p
+end
+
+
+-- Client-side Hit Numbers show/hide concommand.
 concommand.Add( "hitnums_toggle", function()
 	
 	if not GetGlobalBool("HDN_AllowUserToggle") then
@@ -25,7 +62,7 @@ concommand.Add( "hitnums_toggle", function()
 end )
 
 
-// Build colour table from server-set colours.
+-- Build colour table from server-set colours.
 local function buildColourTable()
 	
 	local dmgCols = {}
@@ -67,6 +104,7 @@ local function spawnIndicator(text, col, pos, vel, ttl)
 	
 	ind.ttl = ttl
 	ind.life = ttl
+	ind.spawntime = CurTime()
 	
 	surface.SetFont("font_HDN_Inds")
 	local w, h = surface.GetTextSize(text)
@@ -125,50 +163,50 @@ net.Receive( "hdn_forceToggleOn", function()
 end )
 
 
-// Called when an indicator should be created for this player.
+-- Called when an indicator should be created for this player.
 net.Receive( "hdn_spawn", function()
 	
 	if not on then return end
 	
-	// Get damage type and amount.
+	-- Get damage type and amount.
 	local dmg = net.ReadFloat()
 	local dmgtype = net.ReadUInt(32)
 	
 	if dmg < 1 then dmg = math.Round(dmg, 3)
 	else dmg = math.floor(dmg) end
 	
-	// Get "critical hit" bit.
+	-- Get "critical hit" bit.
 	local crit = (net.ReadBit() ~= 0)
 	
-	// Retreive position and force of the damage.
+	-- Retreive position and force of the damage.
 	local pos = net.ReadVector()
 	local force = net.ReadVector()
 	
-	// Set color of indicator based on damage type (or critical hit).
+	-- Set color of indicator based on damage type (or critical hit).
 	local dmgCols = buildColourTable()
 	local col = dmgCols.gen
 	
 	local ttl = GetGlobalFloat("HDN_TTL", 1.0)
 	local showsign = GetGlobalBool("HDN_ShowSign", true)
-	local critmode = GetGlobalInt("HDN_CritMode", 5) /* See "Critical indicator mode" in sv_hitdamagenumbers.lua */
+	local critmode = GetGlobalInt("HDN_CritMode", CRIT_MODE.CRITICAL_AND_DMG_EX) -- See "Critical indicator mode" in sv_hitdamagenumbers.lua
 	
-	if crit and critmode >= 2 then
+	if crit and critmode >= CRIT_MODE.CRIT_ONLY then
 		
-		local txt
+		local txt = "?"
 		
-		if critmode == 2 or critmode == 6 then
+		if critmode == CRIT_MODE.CRIT_ONLY or critmode == CRIT_MODE.CRIT_AND_DMG_EX then
 			
 			txt = "Crit!"
 			
-		elseif critmode == 3 or critmode == 7 then
+		elseif critmode == CRIT_MODE.CRITICAL_ONLY or critmode >= CRIT_MODE.CRITICAL_AND_DMG_EX then
 			
 			txt = "Critical!"
 			
-		elseif critmode == 4 then
+		elseif critmode == CRIT_MODE.CRIT_AND_DMG then
 			
 			txt = "Crit " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
 			
-		elseif critmode == 5 then
+		elseif critmode == CRIT_MODE.CRITICAL_AND_DMG then
 			
 			txt = "Critical " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
 			
@@ -178,7 +216,7 @@ net.Receive( "hdn_spawn", function()
 		
 	end
 	
-	if not crit or critmode == 0 or critmode == 1 or critmode == 6 or critmode == 7 then
+	if not crit or critmode == CRIT_MODE.NONE or critmode == CRIT_MODE.DMG_ONLY or critmode == CRIT_MODE.CRIT_AND_DMG_EX or critmode >= CRIT_MODE.CRITICAL_AND_DMG_EX then
 		
 		local txt = ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
 		
@@ -190,22 +228,22 @@ net.Receive( "hdn_spawn", function()
 			
 			if bit.band(dmgtype, bit.bor(DMG_BURN, DMG_SLOWBURN, DMG_PLASMA)) != 0 then
 				
-				// Fire damage.
+				-- Fire damage.
 				col = dmgCols.fire
 				
 			elseif bit.band(dmgtype, bit.bor(DMG_BLAST, DMG_BLAST_SURFACE)) != 0 then
 				
-				// Explosive damage.
+				-- Explosive damage.
 				col = dmgCols.expl
 				
 			elseif bit.band(dmgtype, bit.bor(DMG_ACID, DMG_POISON, DMG_RADIATION, DMG_NERVEGAS)) != 0 then
 				
-				// Acidic damage.
+				-- Acidic damage.
 				col = dmgCols.acid
 				
 			elseif bit.band(dmgtype, bit.bor(DMG_DISSOLVE, DMG_ENERGYBEAM, DMG_SHOCK)) != 0 then
 				
-				// Electrical damage.
+				-- Electrical damage.
 				col = dmgCols.elec
 				
 			end
@@ -219,7 +257,7 @@ net.Receive( "hdn_spawn", function()
 end )
 
 
-// Update indicators.
+-- Update indicators.
 hook.Add( "Tick", "hdn_updateInds", function()
 
 	if not on then return end
@@ -228,12 +266,12 @@ hook.Add( "Tick", "hdn_updateInds", function()
 	local dt = curtime - lastcurtime
 	lastcurtime = curtime
 	
-	// Update hit texts.
+	-- Update hit texts.
 	for _, ind in pairs(indicators) do
 		
 		ind.life = ind.life - dt
 	
-		--ind.vel.z = math.Min(ind.vel.z - 0.05, 2)
+	--  ind.vel.z = math.Min(ind.vel.z - 0.05, 2)
 		ind.vel.z = ind.vel.z - 0.05
 		
 		ind.pos.x = ind.pos.x + ind.vel.x
@@ -242,7 +280,7 @@ hook.Add( "Tick", "hdn_updateInds", function()
 		
 	end
 	
-	// Check for and remove expired hit texts.
+	-- Check for and remove expired hit texts.
 	local i = 1
 	while i <= #indicators do
 		if indicators[i].life < 0 then
@@ -276,6 +314,8 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	local scale = GetGlobalFloat("HDN_Scale", 0.3)
 	local alphamul = GetGlobalFloat("HDN_AlphaMul", 1) * 255
 	
+	local animation = ANIMATION_FUNC[GetGlobalInt("HDN_Animation", 0)]
+	
 	surface.SetFont("font_HDN_Inds")
 	
 	local cam_Start3D2D        = cam.Start3D2D
@@ -290,7 +330,7 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 		
 		color = ind.col
 		
-		cam_Start3D2D(ind.pos, ang, scale)
+		cam_Start3D2D(ind.pos, ang, scale * ((animation ~= nil) and animation(CurTime() - ind.spawntime) or 1))
 			surface_SetTextColor(color.r, color.g, color.b, (ind.life / ind.ttl * alphamul))
 			surface_SetTextPos(-ind.widthH, -ind.heightH)
 			surface_DrawText(ind.text)

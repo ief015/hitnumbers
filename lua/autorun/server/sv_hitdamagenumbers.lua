@@ -5,14 +5,14 @@ util.AddNetworkString( "hdn_spawn" )
 util.AddNetworkString( "hdn_forceToggleOn" )
 
 
-// Enable/Disable this addon globally.
+-- Enable/Disable this addon globally.
 local on = true
 CreateConVar( "sv_hitnums_enable", 1 )
 cvars.AddChangeCallback( "sv_hitnums_enable", function()
 	on = (GetConVarNumber("sv_hitnums_enable") ~= 0)
 end )
 
-// Allow clients to hide this addon for themselves.
+-- Allow clients to hide this addon for themselves.
 CreateConVar( "sv_hitnums_allowusertoggle", 0 )
 SetGlobalBool( "HDN_AllowUserToggle", false )
 cvars.AddChangeCallback( "sv_hitnums_allowusertoggle", function()
@@ -24,72 +24,78 @@ cvars.AddChangeCallback( "sv_hitnums_allowusertoggle", function()
 	end
 end )
 
-// Show all damage being made thoughout the server for all clients.
+-- Show all damage being made thoughout the server for all clients.
 local showAll = false
 CreateConVar( "sv_hitnums_showalldamage", 0 )
 cvars.AddChangeCallback( "sv_hitnums_showalldamage", function()
 	showAll = (GetConVarNumber("sv_hitnums_showalldamage") ~= 0)
 end )
 
-// Only show indicators for targets that actually have health and/or is breakable.
+-- Only show indicators for targets that actually have health and/or is breakable.
 local breakablesOnly = true
 CreateConVar( "sv_hitnums_breakablesonly", 1 )
 cvars.AddChangeCallback( "sv_hitnums_breakablesonly", function()
 	breakablesOnly = (GetConVarNumber("sv_hitnums_breakablesonly") ~= 0)
 end )
 
-// Ignore depth for all clients during rendering. Basically when enabled, you can see the indicators through walls and objects.
+-- Ignore depth for all clients during rendering. Basically when enabled, you can see the indicators through walls and objects.
 CreateConVar( "sv_hitnums_ignorez", 0 )
 SetGlobalBool( "HDN_IgnoreZ", false )
 cvars.AddChangeCallback( "sv_hitnums_ignorez", function()
 	SetGlobalBool("HDN_IgnoreZ", GetConVarNumber("sv_hitnums_ignorez") ~= 0)
 end )
 
-// Size-scale of all indicators.
+-- Size-scale of all indicators.
 CreateConVar( "sv_hitnums_scale", 0.3 )
 SetGlobalFloat( "HDN_Scale", 0.3 )
 cvars.AddChangeCallback( "sv_hitnums_scale", function()
 	SetGlobalFloat("HDN_Scale", GetConVarNumber("sv_hitnums_scale"))
 end )
 
-// Time-to-live. In seconds, how long until the indicator is faded completely and deleted.
+-- Time-to-live. In seconds, how long until the indicator is faded completely and deleted.
 CreateConVar( "sv_hitnums_ttl", 1.0 )
 SetGlobalFloat( "HDN_TTL", 1.0 )
 cvars.AddChangeCallback( "sv_hitnums_ttl", function()
 	SetGlobalFloat("HDN_TTL", GetConVarNumber("sv_hitnums_ttl"))
 end )
 
-// Time-to-live. In seconds, how long until the indicator is faded completely and deleted.
+-- Time-to-live. In seconds, how long until the indicator is faded completely and deleted.
 CreateConVar( "sv_hitnums_showsign", 1 )
 SetGlobalBool( "HDN_ShowSign", true )
 cvars.AddChangeCallback( "sv_hitnums_showsign", function()
 	SetGlobalBool("HDN_ShowSign", GetConVarNumber("sv_hitnums_showsign") ~= 0)
 end )
 
-// Transparency/Alpha multiplier.
+-- Transparency/Alpha multiplier.
 CreateConVar( "sv_hitnums_alpha", 1.0 )
 SetGlobalFloat( "HDN_AlphaMul", 1.0 )
 cvars.AddChangeCallback( "sv_hitnums_alpha", function()
 	SetGlobalInt("HDN_AlphaMul", math.Clamp(GetConVarNumber("sv_hitnums_alpha"), 0, 1))
 end )
 
-// Critical indicator mode.
-// 0 = No Crit (Damage is shown, but not in critical colour)
-// 1 = "<dmg>" (Damage only, in critical colour)
-// 2 = "Crit!"
-// 3 = "Critical!"
-// 4 = "Crit <dmg>"
-// 5 = "Critical <dmg>"
-// 6 = "Crit!" AND "<dmg>"
-// 7 = "Critical!" AND "<dmg>"
+-- Critical indicator mode.
+-- 0 = No Crit (Damage is shown, but not in critical colour)
+-- 1 = "<dmg>" (Damage only, in critical colour)
+-- 2 = "Crit!"
+-- 3 = "Critical!"
+-- 4 = "Crit <dmg>"
+-- 5 = "Critical <dmg>"
+-- 6 = "Crit!" AND "<dmg>"
+-- 7 = "Critical!" AND "<dmg>"
 CreateConVar( "sv_hitnums_critmode", 7 )
 SetGlobalInt( "HDN_CritMode", 7 )
 cvars.AddChangeCallback( "sv_hitnums_critmode", function()
 	SetGlobalInt("HDN_CritMode", GetConVarNumber("sv_hitnums_critmode"))
 end )
 
+CreateConVar( "sv_hitnums_animate", 1 )
+SetGlobalInt( "HDN_Animation", 1 )
+cvars.AddChangeCallback( "sv_hitnums_animate", function()
+	SetGlobalInt("HDN_Animation", GetConVarNumber("sv_hitnums_animate"))
+end )
 
-// Masks.
+
+-- Damage masks.
 local mask_players = true
 local mask_npcs = true
 local mask_ragdolls = true
@@ -128,7 +134,7 @@ cvars.AddChangeCallback( "sv_hitnums_mask_world", function()
 end )
 
 
-// Fontface.
+-- Font face.
 local font_name = "coolvetica"
 local font_size = 50
 local font_weight = 800
@@ -179,7 +185,7 @@ cvars.AddChangeCallback( "sv_hitnums_font_outline", function()
 end )
 
 
-// Colours.
+-- Colours.
 CreateConVar( "sv_hitnums_color_generic", "FFE6D2" )
 SetGlobalInt("HDN_Col_Gen", 16770770)
 cvars.AddChangeCallback( "sv_hitnums_color_generic", function()
@@ -255,22 +261,22 @@ local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit,
 	
 	net.Start("hdn_spawn", true)
 	
-	// Damage amount.
+	-- Damage amount.
 	net.WriteFloat(dmgAmount)
 	
-	// Type of damage.
+	-- Type of damage.
 	net.WriteUInt(dmgType, 32)
 	
-	// Is critical.
+	-- Is critical.
 	net.WriteBit(isCrit)
 	
-	// Damage position.
+	-- Damage position.
 	net.WriteVector(dmgPosition)
 	
-	// Force of damage.
+	-- Force of damage.
 	net.WriteVector(dmgForce)
 	
-	// Send indicator to reciever, else all players.
+	-- Send indicator to receiver, else all players.
 	if reciever == nil then
 		if target == nil then
 			net.Broadcast()
@@ -297,7 +303,7 @@ local function loadSettings()
 			
 			file.Write('hitnumbers/settings.backup.txt', data);
 			
-			// Build a new settings file.
+			-- Build a new settings file.
 			return false
 		end
 		
@@ -309,7 +315,7 @@ local function loadSettings()
 		
 	end
 	
-	// No settings file exists.
+	-- No settings file exists.
 	return false
 end
 
@@ -323,7 +329,7 @@ local function saveSettings()
 	local t = {}
 	
 	for k,v in ipairs({
-		'enable', 'allowusertoggle', 'showalldamage', 'breakablesonly', 'ignorez', 'scale', 'ttl', 'showsign', 'alpha', 'critmode',
+		'enable', 'allowusertoggle', 'showalldamage', 'breakablesonly', 'ignorez', 'scale', 'ttl', 'showsign', 'alpha', 'critmode', 'animate',
 		'mask_players', 'mask_npcs', 'mask_ragdolls', 'mask_vehicles', 'mask_props', 'mask_world',
 		'font_name', 'font_size', 'font_weight', 'font_underline', 'font_italic', 'font_shadow', 'font_additive', 'font_outline',
 		'color_generic', 'color_critical', 'color_fire', 'color_explosion', 'color_acid', 'color_electric', 
@@ -382,7 +388,7 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 			local targetIsPlayer = target:IsPlayer()
 			local targetIsNPC    = target:IsNPC()
 			
-			// Check masks.
+			-- Check masks.
 			if ( !mask_players and targetIsPlayer )
 			or ( !mask_npcs and targetIsNPC )
 			or ( !mask_ragdolls and target:IsRagdoll() )
@@ -394,7 +400,7 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 			local dmgAmount = dmginfo:GetDamage()
 			local dmgType   = dmginfo:GetDamageType()
 			
-			// Get damage position.
+			-- Get damage position.
 			local pos = nil
 			if dmginfo:IsBulletDamage() then
 				
@@ -415,12 +421,12 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 			
 			if pos == nil then
 				
-				// Default damage position if no damage position could be calculated.
+				-- Default damage position if no damage position could be calculated.
 				pos = target:LocalToWorld(target:OBBCenter())
 				
 			end
 			
-			// Get force of damage.
+			-- Get force of damage.
 			local force
 			if dmginfo:IsExplosionDamage() then
 				force = dmginfo:GetDamageForce() / 4000
@@ -431,11 +437,11 @@ hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 			force.y = math.Clamp(force.y, -1, 1)
 			force.z = math.Clamp(force.z, -1, 1)
 			
-			// Is it a critical hit? (For players and npcs only)
+			-- Is it a critical hit? (For players and npcs only)
 			local isCrit = (dmgAmount >= target:GetMaxHealth()) and
 			               (targetIsPlayer or targetIsNPC)
 			
-			// Create and send the indicator to players.
+			-- Create and send the indicator to players.
 			if showAll then
 				if targetIsPlayer then
 					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, nil)
