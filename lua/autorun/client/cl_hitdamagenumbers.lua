@@ -3,6 +3,16 @@ local initialized = false
 local lastcurtime = 0
 local on = true
 
+local debugger = {}
+debugger.enabled = false
+debugger.tickms = 0
+debugger.renderms = 0
+debugger.ticktimer = 0
+debugger.rendertimer = 0
+debugger.count = 0
+
+local indicatorColors = {}
+
 local CRIT_MODE = {}
 CRIT_MODE.NONE                = 0
 CRIT_MODE.DMG_ONLY            = 1
@@ -41,6 +51,13 @@ ANIMATION_FUNC[3] = function(p)
 end
 
 
+-- Debug mode, shows performance.
+CreateConVar( "hitnums_debugmode", 0 )
+cvars.AddChangeCallback( "hitnums_debugmode", function()
+	debugger.enabled = GetConVarNumber("hitnums_debugmode") ~= 0
+end )
+
+
 -- Client-side Hit Numbers show/hide concommand.
 concommand.Add( "hitnums_toggle", function()
 	
@@ -65,30 +82,28 @@ end )
 -- Build colour table from server-set colours.
 local function buildColourTable()
 	
-	local dmgCols = {}
-	local col
-	
-	col = GetGlobalInt("HDN_Col_Gen", 16770770)
-	dmgCols.gen = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	local col = GetGlobalInt("HDN_Col_Gen", 16770770)
+	indicatorColors.gen = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 	col = GetGlobalInt("HDN_Col_Crit", 16721960)
-	dmgCols.crit = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	indicatorColors.crit = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 	col = GetGlobalInt("HDN_Col_Fire", 16742400)
-	dmgCols.fire = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	indicatorColors.fire = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 	col = GetGlobalInt("HDN_Col_Expl", 15790130)
-	dmgCols.expl = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	indicatorColors.expl = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 	col = GetGlobalInt("HDN_Col_Acid", 9240395)
-	dmgCols.acid = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
+	indicatorColors.acid = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 	col = GetGlobalInt("HDN_Col_Elec", 6594815)
-	dmgCols.elec = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
-	
-	return dmgCols
+	indicatorColors.elec = Color(bit.band(bit.rshift(col, 16), 255), bit.band(bit.rshift(col, 8), 255), bit.band(col, 255))
 	
 end
+net.Receive( "hdn_refreshColours", function()
+	timer.Simple(1.0, buildColourTable) -- Delay to allow Globals to sync.
+end )
 
 
 local function spawnIndicator(text, col, pos, vel, ttl)
@@ -151,6 +166,8 @@ net.Receive( "hdn_initPly", function()
 		outline 	= (net.ReadBit()~=0)
 	} )
 	
+	buildColourTable()
+	
 	initialized = true
 	
 end )
@@ -178,21 +195,25 @@ net.Receive( "hdn_spawn", function()
 	-- Get "critical hit" bit.
 	local crit = (net.ReadBit() ~= 0)
 	
-	-- Retreive position and force of the damage.
+	-- Retrieve position and force of the damage.
 	local pos = net.ReadVector()
-	local force = net.ReadVector()
+	local force = net.ReadVector() * GetGlobalFloat("HDN_ForceInheritance", 1.0)
 	
-	-- Set color of indicator based on damage type (or critical hit).
-	local dmgCols = buildColourTable()
-	local col = dmgCols.gen
+	-- Set colour of indicator based on damage type (or critical hit).
+	local col = indicatorColors.gen
 	
-	local ttl = GetGlobalFloat("HDN_TTL", 1.0)
-	local showsign = GetGlobalBool("HDN_ShowSign", true)
-	local critmode = GetGlobalInt("HDN_CritMode", CRIT_MODE.CRITICAL_AND_DMG_EX) -- See "Critical indicator mode" in sv_hitdamagenumbers.lua
+	local ttl         = GetGlobalFloat("HDN_TTL", 1.0)
+	local showsign    = GetGlobalBool("HDN_ShowSign", true)
+	local critmode    = GetGlobalInt("HDN_CritMode", CRIT_MODE.CRITICAL_AND_DMG_EX) -- See "Critical indicator mode" in sv_hitdamagenumbers.lua
 	
+	local fxmin, fxmax = GetGlobalFloat("HDN_ForceOffset_XMin", -0.5), GetGlobalFloat("HDN_ForceOffset_XMax", 0.5)
+	local fymin, fymax = GetGlobalFloat("HDN_ForceOffset_YMin", -0.5), GetGlobalFloat("HDN_ForceOffset_YMax", 0.5)
+	local fzmin, fzmax = GetGlobalFloat("HDN_ForceOffset_ZMin", 0.75), GetGlobalFloat("HDN_ForceOffset_ZMax", 1.0)
+	
+	-- Is critical text indicator.
 	if crit and critmode >= CRIT_MODE.CRIT_ONLY then
 		
-		local txt = "?"
+		local txt
 		
 		if critmode == CRIT_MODE.CRIT_ONLY or critmode == CRIT_MODE.CRIT_AND_DMG_EX then
 			
@@ -210,47 +231,52 @@ net.Receive( "hdn_spawn", function()
 			
 			txt = "Critical " .. ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
 			
+		else
+			
+			txt = "?"
+			
 		end
 		
-		spawnIndicator(txt, dmgCols.crit, pos, force + Vector(math.Rand(-0.5, 0.5), math.Rand(-0.5, 0.5), math.Rand(1.1, 1.4)), ttl)
+		spawnIndicator(txt, indicatorColors.crit, pos, force + Vector(math.Rand(fxmin, fxmax), math.Rand(fymin, fymax), math.Rand(fzmin, fzmax) * 1.5), ttl)
 		
 	end
 	
+	-- Regular number indicator.
 	if not crit or critmode == CRIT_MODE.NONE or critmode == CRIT_MODE.DMG_ONLY or critmode == CRIT_MODE.CRIT_AND_DMG_EX or critmode >= CRIT_MODE.CRITICAL_AND_DMG_EX then
 		
 		local txt = ( showsign and tostring(-dmg) or tostring(math.abs(dmg)) )
 		
 		if crit and critmode == 1 then
 			
-			col = dmgCols.crit
+			col = indicatorColors.crit
 			
 		else
 			
 			if bit.band(dmgtype, bit.bor(DMG_BURN, DMG_SLOWBURN, DMG_PLASMA)) != 0 then
 				
 				-- Fire damage.
-				col = dmgCols.fire
+				col = indicatorColors.fire
 				
 			elseif bit.band(dmgtype, bit.bor(DMG_BLAST, DMG_BLAST_SURFACE)) != 0 then
 				
 				-- Explosive damage.
-				col = dmgCols.expl
+				col = indicatorColors.expl
 				
 			elseif bit.band(dmgtype, bit.bor(DMG_ACID, DMG_POISON, DMG_RADIATION, DMG_NERVEGAS)) != 0 then
 				
 				-- Acidic damage.
-				col = dmgCols.acid
+				col = indicatorColors.acid
 				
 			elseif bit.band(dmgtype, bit.bor(DMG_DISSOLVE, DMG_ENERGYBEAM, DMG_SHOCK)) != 0 then
 				
 				-- Electrical damage.
-				col = dmgCols.elec
+				col = indicatorColors.elec
 				
 			end
 			
 		end
 		
-		spawnIndicator(txt, col, pos, force + Vector(math.Rand(-0.5, 0.5), math.Rand(-0.5, 0.5), math.Rand(0.75, 1.0)), ttl)
+		spawnIndicator(txt, col, pos, force + Vector(math.Rand(fxmin, fxmax), math.Rand(fymin, fymax), math.Rand(fzmin, fzmax) * 1.5), ttl)
 		
 	end
 	
@@ -261,23 +287,24 @@ end )
 hook.Add( "Tick", "hdn_updateInds", function()
 
 	if not on then return end
+	if debugger.enabled then debugger.ticktimer = SysTime() end
 	
 	local curtime = CurTime()
 	local dt = curtime - lastcurtime
 	lastcurtime = curtime
 	
-	-- Update hit texts.
-	for _, ind in pairs(indicators) do
-		
-		ind.life = ind.life - dt
+	if #indicators == 0 then return end
 	
+	local gravity = GetGlobalFloat("HDN_Gravity", 1.0) * 0.05
+	
+	-- Update hit texts.
+	local ind
+	for i=1, #indicators do
+		ind = indicators[i]
+		ind.life = ind.life - dt
 	--  ind.vel.z = math.Min(ind.vel.z - 0.05, 2)
-		ind.vel.z = ind.vel.z - 0.05
-		
-		ind.pos.x = ind.pos.x + ind.vel.x
-		ind.pos.y = ind.pos.y + ind.vel.y
-		ind.pos.z = ind.pos.z + ind.vel.z
-		
+		ind.vel.z = ind.vel.z - gravity
+		ind.pos = ind.pos + ind.vel
 	end
 	
 	-- Check for and remove expired hit texts.
@@ -290,6 +317,12 @@ hook.Add( "Tick", "hdn_updateInds", function()
 		end
 	end
 	
+	-- Update debugging info.
+	if debugger.enabled then
+		debugger.count = #indicators
+		debugger.tickms = (SysTime() - debugger.ticktimer) * 1000
+	end
+	
 end )
 
 
@@ -299,48 +332,105 @@ hook.Add( "PostDrawTranslucentRenderables", "hdn_drawInds", function()
 	if not on then return end
 	if not initialized then return end
 	if #indicators == 0 then return end
+	if debugger.enabled then debugger.rendertimer = SysTime() end
 	
+	-- Indicators to always face the player.
 	local observer = (LocalPlayer():GetViewEntity() or LocalPlayer())
 	local ang = observer:EyeAngles()
 	ang:RotateAroundAxis( ang:Forward(), 90 )
 	ang:RotateAroundAxis( ang:Right(), 90 )
 	ang = Angle( 0, ang.y, ang.r )
 	
-	local ignorez = GetGlobalBool("HDN_IgnoreZ", false)
-	if ignorez then
-		cam.IgnoreZ(true)
-	end
-	
 	local scale = GetGlobalFloat("HDN_Scale", 0.3)
 	local alphamul = GetGlobalFloat("HDN_AlphaMul", 1) * 255
+	local fanimation = ANIMATION_FUNC[GetGlobalInt("HDN_Animation", 0)]
 	
-	local animation = ANIMATION_FUNC[GetGlobalInt("HDN_Animation", 0)]
-	
-	surface.SetFont("font_HDN_Inds")
-	
+	-- Is this even necessary to do anymore?
 	local cam_Start3D2D        = cam.Start3D2D
 	local cam_End3D2D          = cam.End3D2D
 	local surface_SetTextColor = surface.SetTextColor
 	local surface_SetTextPos   = surface.SetTextPos
 	local surface_DrawText     = surface.DrawText
 	
-	local color
+	-- Render above everything.
+	local ignorez = GetGlobalBool("HDN_IgnoreZ", false)
+	if ignorez then
+		cam.IgnoreZ(true)
+	end
 	
-	for _, ind in pairs(indicators) do
-		
-		color = ind.col
-		
-		cam_Start3D2D(ind.pos, ang, scale * ((animation ~= nil) and animation(CurTime() - ind.spawntime) or 1))
-			surface_SetTextColor(color.r, color.g, color.b, (ind.life / ind.ttl * alphamul))
+	surface.SetFont("font_HDN_Inds")
+	
+	-- Render each indicator.
+	local ind
+	for i=1, #indicators do
+		ind = indicators[i]
+		cam_Start3D2D(ind.pos, ang, scale * ((fanimation ~= nil) and fanimation((CurTime() - ind.spawntime) / ind.ttl) or 1))
+			surface_SetTextColor(ind.col.r, ind.col.g, ind.col.b, (ind.life / ind.ttl * alphamul))
 			surface_SetTextPos(-ind.widthH, -ind.heightH)
 			surface_DrawText(ind.text)
 		cam_End3D2D()
-		
 	end
 	
+	-- Reset depth ignorance.
 	if ignorez then
 		cam.IgnoreZ(false)
 	end
+	
+	if debugger.enabled then
+		debugger.renderms = (SysTime() - debugger.rendertimer) * 1000
+	end
+	
+end )
+
+
+hook.Add( "HUDPaint", "hdn_debugHUD", function()
+	
+	if not on then return end
+	if not debugger.enabled then return end
+	
+	local hudx, hudy = 10, 10
+	
+	local tickcol = color_white
+	local rendercol = color_white
+	
+	for k,v in pairs({debugger.tickms, debugger.renderms}) do
+		if v > 1.0 then
+			if k == 1 then tickcol = Color(255,0,0,255)
+			else rendercol = Color(255,0,0,255) end
+		elseif v > 0.5 then
+			if k == 1 then tickcol = Color(255,255,0,255)
+			else rendercol = Color(255,255,0,255) end
+		elseif v > 0.1 then
+			if k == 1 then tickcol = Color(0,255,0,255)
+			else rendercol = Color(0,255,0,255) end
+		else
+			if k == 1 then tickcol = Color(0,255,255,255)
+			else rendercol = Color(0,255,255,255) end
+		end
+	end
+	
+	draw.RoundedBox(4, hudx, hudy, 128, 58, Color(0, 0, 0, 200))
+	draw.Text({
+		text = "HITNUMBERS - DEBUG",
+		pos  = { hudx + 4, hudy + 4}
+	})
+	draw.Text({
+		text = "Count " .. debugger.count,
+		pos  = { hudx + 4, hudy + 20}
+	})
+	draw.Text({
+		text  = "Tick " .. math.Round(debugger.tickms, 3) .. " ms",
+		pos   = { hudx + 4, hudy + 30},
+		color = tickcol
+	})
+	draw.Text({
+		text  = "Render " .. math.Round(debugger.renderms, 3) .. " ms",
+		pos   = { hudx + 4, hudy + 40},
+		color = rendercol
+	})
+	
+	debugger.tickms   = 0
+	debugger.renderms = 0
 	
 end )
 

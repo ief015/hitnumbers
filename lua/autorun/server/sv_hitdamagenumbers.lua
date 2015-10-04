@@ -2,6 +2,7 @@ AddCSLuaFile("autorun/client/cl_hitdamagenumbers.lua")
 
 util.AddNetworkString( "hdn_initPly" )
 util.AddNetworkString( "hdn_spawn" )
+util.AddNetworkString( "hdn_refreshColours" )
 util.AddNetworkString( "hdn_forceToggleOn" )
 
 
@@ -94,6 +95,53 @@ cvars.AddChangeCallback( "sv_hitnums_animate", function()
 	SetGlobalInt("HDN_Animation", GetConVarNumber("sv_hitnums_animate"))
 end )
 
+CreateConVar( "sv_hitnums_gravity", 1 )
+SetGlobalFloat( "HDN_Gravity", 1 )
+cvars.AddChangeCallback( "sv_hitnums_gravity", function()
+	SetGlobalFloat("HDN_Gravity", GetConVarNumber("sv_hitnums_gravity"))
+end )
+
+CreateConVar( "sv_hitnums_forceinheritance", 1 )
+SetGlobalFloat( "HDN_ForceInheritance", 1 )
+cvars.AddChangeCallback( "sv_hitnums_forceinheritance", function()
+	SetGlobalFloat("HDN_ForceInheritance", GetConVarNumber("sv_hitnums_forceinheritance"))
+end )
+
+CreateConVar( "sv_hitnums_forceoffset_xmin", -0.5 )
+SetGlobalFloat( "HDN_ForceOffset_XMin", -0.5 )
+cvars.AddChangeCallback( "sv_hitnums_forceoffset_xmin", function()
+	SetGlobalFloat("HDN_ForceOffset_XMin", GetConVarNumber("sv_hitnums_forceoffset_xmin"))
+end )
+
+CreateConVar( "sv_hitnums_forceoffset_xmax", 0.5 )
+SetGlobalFloat( "HDN_ForceOffset_XMax", 0.5 )
+cvars.AddChangeCallback( "sv_hitnums_forceoffset_xmax", function()
+	SetGlobalFloat("HDN_ForceOffset_XMax", GetConVarNumber("sv_hitnums_forceoffset_xmax"))
+end )
+
+CreateConVar( "sv_hitnums_forceoffset_ymin", -0.5 )
+SetGlobalFloat( "HDN_ForceOffset_YMin", -0.5 )
+cvars.AddChangeCallback( "sv_hitnums_forceoffset_ymin", function()
+	SetGlobalFloat("HDN_ForceOffset_YMin", GetConVarNumber("sv_hitnums_forceoffset_ymin"))
+end )
+
+CreateConVar( "sv_hitnums_forceoffset_ymax", 0.5 )
+SetGlobalFloat( "HDN_ForceOffset_YMax", 0.5 )
+cvars.AddChangeCallback( "sv_hitnums_forceoffset_ymax", function()
+	SetGlobalFloat("HDN_ForceOffset_YMax", GetConVarNumber("sv_hitnums_forceoffset_ymax"))
+end )
+
+CreateConVar( "sv_hitnums_forceoffset_zmin", 0.75 )
+SetGlobalFloat( "HDN_ForceOffset_ZMin", 0.75 )
+cvars.AddChangeCallback( "sv_hitnums_forceoffset_zmin", function()
+	SetGlobalFloat("HDN_ForceOffset_ZMin", GetConVarNumber("sv_hitnums_forceoffset_zmin"))
+end )
+
+CreateConVar( "sv_hitnums_forceoffset_zmax", 1.0 )
+SetGlobalFloat( "HDN_ForceOffset_ZMax", 1.0 )
+cvars.AddChangeCallback( "sv_hitnums_forceoffset_zmax", function()
+	SetGlobalFloat("HDN_ForceOffset_ZMax", GetConVarNumber("sv_hitnums_forceoffset_zmax"))
+end )
 
 -- Damage masks.
 local mask_players = true
@@ -190,36 +238,48 @@ CreateConVar( "sv_hitnums_color_generic", "FFE6D2" )
 SetGlobalInt("HDN_Col_Gen", 16770770)
 cvars.AddChangeCallback( "sv_hitnums_color_generic", function()
 	SetGlobalInt("HDN_Col_Gen", tonumber("0x"..GetConVarString("sv_hitnums_color_generic"):sub(1,6)))
+	net.Start("hdn_refreshColours")
+	net.Broadcast()
 end )
 
 CreateConVar( "sv_hitnums_color_critical", "FF2828" )
 SetGlobalInt("HDN_Col_Crit", 16721960)
 cvars.AddChangeCallback( "sv_hitnums_color_critical", function()
 	SetGlobalInt("HDN_Col_Crit", tonumber("0x"..GetConVarString("sv_hitnums_color_critical"):sub(1,6)))
+	net.Start("hdn_refreshColours")
+	net.Broadcast()
 end )
 
 CreateConVar( "sv_hitnums_color_fire", "FF7800" )
 SetGlobalInt("HDN_Col_Fire", 16742400)
 cvars.AddChangeCallback( "sv_hitnums_color_fire", function()
 	SetGlobalInt("HDN_Col_Fire", tonumber("0x"..GetConVarString("sv_hitnums_color_fire"):sub(1,6)))
+	net.Start("hdn_refreshColours")
+	net.Broadcast()
 end )
 
 CreateConVar( "sv_hitnums_color_explosion", "F0F032" )
 SetGlobalInt("HDN_Col_Expl", 15790130)
 cvars.AddChangeCallback( "sv_hitnums_color_explosion", function()
 	SetGlobalInt("HDN_Col_Expl", tonumber("0x"..GetConVarString("sv_hitnums_color_explosion"):sub(1,6)))
+	net.Start("hdn_refreshColours")
+	net.Broadcast()
 end )
 
 CreateConVar( "sv_hitnums_color_acid", "8CFF4B" )
 SetGlobalInt("HDN_Col_Acid", 9240395)
 cvars.AddChangeCallback( "sv_hitnums_color_acid", function()
 	SetGlobalInt("HDN_Col_Acid", tonumber("0x"..GetConVarString("sv_hitnums_color_acid"):sub(1,6)))
+	net.Start("hdn_refreshColours")
+	net.Broadcast()
 end )
 
 CreateConVar( "sv_hitnums_color_electric", "64A0FF" )
 SetGlobalInt("HDN_Col_Elec", 6594815)
 cvars.AddChangeCallback( "sv_hitnums_color_electric", function()
 	SetGlobalInt("HDN_Col_Elec", tonumber("0x"..GetConVarString("sv_hitnums_color_electric"):sub(1,6)))
+	net.Start("hdn_refreshColours")
+	net.Broadcast()
 end )
 
 
@@ -227,7 +287,7 @@ local nWarnings = 0
 
 local function printWarning(msg)
 	
-	MsgC(Color(255, 50, 0), "WARNING: ")
+	MsgC(Color(255, 50, 0), "[HitNumbers] WARNING: ")
 	Msg(tostring(msg))
 	
 	nWarnings = nWarnings + 1
@@ -328,8 +388,10 @@ local function saveSettings()
 	
 	local t = {}
 	
+	-- sv_hitnums_* commands
 	for k,v in ipairs({
 		'enable', 'allowusertoggle', 'showalldamage', 'breakablesonly', 'ignorez', 'scale', 'ttl', 'showsign', 'alpha', 'critmode', 'animate',
+		'gravity', 'forceinheritance', 'forceoffset_xmin', 'forceoffset_xmax', 'forceoffset_ymin', 'forceoffset_ymax', 'forceoffset_zmin', 'forceoffset_zmax',
 		'mask_players', 'mask_npcs', 'mask_ragdolls', 'mask_vehicles', 'mask_props', 'mask_world',
 		'font_name', 'font_size', 'font_weight', 'font_underline', 'font_italic', 'font_shadow', 'font_additive', 'font_outline',
 		'color_generic', 'color_critical', 'color_fire', 'color_explosion', 'color_acid', 'color_electric', 
