@@ -25,7 +25,7 @@ cvars.AddChangeCallback( "sv_hitnums_allowusertoggle", function()
 	end
 end )
 
--- Show all damage being made thoughout the server for all clients.
+-- Show all damage being made throughout the server for all clients.
 local showAll = false
 CreateConVar( "sv_hitnums_showalldamage", 0 )
 cvars.AddChangeCallback( "sv_hitnums_showalldamage", function()
@@ -350,6 +350,96 @@ local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit,
 end
 
 
+local function onEntTakeDamage(target, dmginfo)
+	
+	if not on then return end
+	
+	local attacker = dmginfo:GetAttacker()
+	
+	if target:IsValid() then
+		
+		local attackerIsPlayer = attacker:IsPlayer()
+		
+		if  ( attackerIsPlayer or showAll )
+		and ( !breakablesOnly or target:Health() > 0 )
+		and ( target:GetCollisionGroup() ~= COLLISION_GROUP_DEBRIS )
+		and ( attacker != target or showAll )
+		then
+			
+			local targetIsPlayer = target:IsPlayer()
+			local targetIsNPC    = target:IsNPC()
+			
+			-- Check masks.
+			if ( !mask_players and targetIsPlayer )
+			or ( !mask_npcs and targetIsNPC )
+			or ( !mask_ragdolls and target:IsRagdoll() )
+			or ( !mask_vehicles and target:IsVehicle() )
+			or ( !mask_props and entIsProp(target) )
+			or ( !mask_world and entIsWorld(target) )
+			then return end
+			
+			local dmgAmount = dmginfo:GetDamage()
+			local dmgType   = dmginfo:GetDamageType()
+			
+			-- Get damage position.
+			local pos = nil
+			if dmginfo:IsBulletDamage() then
+				
+				pos = dmginfo:GetDamagePosition()
+				
+			elseif (attackerIsPlayer or attacker:IsNPC()) and (dmgType == DMG_CLUB or dmgType == DMG_SLASH) then
+				
+				pos = util.TraceHull({
+					start  = attacker:GetShootPos(),
+					endpos = attacker:GetShootPos() + (attacker:GetAimVector() * 100),
+					filter = attacker,
+					mins   = Vector(-10,-10,-10),
+					maxs   = Vector( 10, 10, 10),
+					mask   = MASK_SHOT_HULL,
+				}).HitPos
+				
+			end
+			
+			if pos == nil then
+				
+				-- Default damage position if no damage position could be calculated.
+				pos = target:LocalToWorld(target:OBBCenter())
+				
+			end
+			
+			-- Get force of damage.
+			local force = nil
+			if dmginfo:IsExplosionDamage() then
+				force = dmginfo:GetDamageForce() / 4000
+			else
+				force = -dmginfo:GetDamageForce() / 1000
+			end
+			force.x = math.Clamp(force.x, -1, 1)
+			force.y = math.Clamp(force.y, -1, 1)
+			force.z = math.Clamp(force.z, -1, 1)
+			
+			-- Is it a critical hit? (For players and npcs only)
+			local isCrit = (dmgAmount >= target:GetMaxHealth()) and
+			               (targetIsPlayer or targetIsNPC)
+			
+			-- Create and send the indicator to players.
+			if showAll then
+				if targetIsPlayer then
+					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, nil)
+				else
+					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, nil, nil)
+				end
+			else
+				spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, attacker)
+			end
+			
+		end
+		
+	end
+	
+end
+
+
 local function loadSettings()
 	
 	if file.Exists('hitnumbers/settings.txt', 'DATA') then
@@ -430,94 +520,11 @@ hook.Add( "PlayerAuthed", "hdn_initializePlayer", function(pl)
 	
 end )
 
+hook.Add( "InitPostEntity", "hdn_postInitHook", function()
+	
+	-- Not a guarantee, but this should, in most cases, ensure that Hit Numbers is one of the last to hook to EntityTakeDamage
+	hook.Add( "EntityTakeDamage", "hdn_onEntDamage", onEntTakeDamage )
 
-hook.Add( "EntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
-	
-	if not on then return end
-	
-	local attacker = dmginfo:GetAttacker()
-	
-	if target:IsValid() then
-		
-		local attackerIsPlayer = attacker:IsPlayer()
-		
-		if  ( attackerIsPlayer or showAll )
-		and ( !breakablesOnly or target:Health() > 0 )
-		and ( target:GetCollisionGroup() ~= COLLISION_GROUP_DEBRIS )
-		and ( attacker != target or showAll )
-		then
-			
-			local targetIsPlayer = target:IsPlayer()
-			local targetIsNPC    = target:IsNPC()
-			
-			-- Check masks.
-			if ( !mask_players and targetIsPlayer )
-			or ( !mask_npcs and targetIsNPC )
-			or ( !mask_ragdolls and target:IsRagdoll() )
-			or ( !mask_vehicles and target:IsVehicle() )
-			or ( !mask_props and entIsProp(target) )
-			or ( !mask_world and entIsWorld(target) )
-			then return end
-			
-			local dmgAmount = dmginfo:GetDamage()
-			local dmgType   = dmginfo:GetDamageType()
-			
-			-- Get damage position.
-			local pos = nil
-			if dmginfo:IsBulletDamage() then
-				
-				pos = dmginfo:GetDamagePosition()
-				
-			elseif (attackerIsPlayer or attacker:IsNPC()) and (dmgType == DMG_CLUB or dmgType == DMG_SLASH) then
-				
-				pos = util.TraceHull({
-					start  = attacker:GetShootPos(),
-					endpos = attacker:GetShootPos() + (attacker:GetAimVector() * 100),
-					filter = attacker,
-					mins   = Vector(-10,-10,-10),
-					maxs   = Vector( 10, 10, 10),
-					mask   = MASK_SHOT_HULL,
-				}).HitPos
-				
-			end
-			
-			if pos == nil then
-				
-				-- Default damage position if no damage position could be calculated.
-				pos = target:LocalToWorld(target:OBBCenter())
-				
-			end
-			
-			-- Get force of damage.
-			local force
-			if dmginfo:IsExplosionDamage() then
-				force = dmginfo:GetDamageForce() / 4000
-			else
-				force = -dmginfo:GetDamageForce() / 1000
-			end
-			force.x = math.Clamp(force.x, -1, 1)
-			force.y = math.Clamp(force.y, -1, 1)
-			force.z = math.Clamp(force.z, -1, 1)
-			
-			-- Is it a critical hit? (For players and npcs only)
-			local isCrit = (dmgAmount >= target:GetMaxHealth()) and
-			               (targetIsPlayer or targetIsNPC)
-			
-			-- Create and send the indicator to players.
-			if showAll then
-				if targetIsPlayer then
-					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, nil)
-				else
-					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, nil, nil)
-				end
-			else
-				spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, attacker)
-			end
-			
-		end
-		
-	end
-	
 end )
 
 -- Load server settings.
