@@ -520,10 +520,8 @@ hook.Add( "PlayerAuthed", "hdn_initializePlayer", function(pl)
 	
 end )
 
-hook.Add( "InitPostEntity", "hdn_postInitHook", function()
-	-- Hooks Hit Numbers, so that it displays all damage events
-	hook.Add( "PostEntityTakeDamage", "hdn_onEntDamage", onEntTakeDamage )
-end )
+-- Hooks Hit Numbers, so that it displays all damage events
+hook.Add( "PostEntityTakeDamage", "hdn_onEntDamage", onEntTakeDamage )
 
 -- Load server settings.
 if not loadSettings() then
