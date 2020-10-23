@@ -144,12 +144,12 @@ cvars.AddChangeCallback( "sv_hitnums_forceoffset_zmax", function()
 end )
 
 -- Damage masks.
-local mask_players = true
-local mask_npcs = true
+local mask_players  = true
+local mask_npcs     = true
 local mask_ragdolls = true
 local mask_vehicles = true
-local mask_props = true
-local mask_world = false
+local mask_props    = true
+local mask_world    = false
 
 CreateConVar( "sv_hitnums_mask_players", 1 )
 cvars.AddChangeCallback( "sv_hitnums_mask_players", function()
@@ -183,14 +183,14 @@ end )
 
 
 -- Font face.
-local font_name = "coolvetica"
-local font_size = 50
-local font_weight = 800
+local font_name      = "coolvetica"
+local font_size      = 50
+local font_weight    = 800
 local font_underline = false
-local font_italic = false
-local font_shadow = false
-local font_additive = false
-local font_outline = true
+local font_italic    = false
+local font_shadow    = false
+local font_additive  = false
+local font_outline   = true
 
 CreateConVar( "sv_hitnums_font_name", "coolvetica" )
 cvars.AddChangeCallback( "sv_hitnums_font_name", function()
@@ -350,14 +350,13 @@ local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit,
 end
 
 
-local function onEntTakeDamage(target, dmginfo)
+hook.Add( "PostEntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 	
 	if not on then return end
 	
-	local attacker = dmginfo:GetAttacker()
-	
 	if target:IsValid() then
-		
+	
+		local attacker = dmginfo:GetAttacker()
 		local attackerIsPlayer = attacker:IsPlayer()
 		
 		if  ( attackerIsPlayer or showAll )
@@ -437,7 +436,7 @@ local function onEntTakeDamage(target, dmginfo)
 		
 	end
 	
-end
+end )
 
 
 local function loadSettings()
@@ -520,13 +519,12 @@ hook.Add( "PlayerAuthed", "hdn_initializePlayer", function(pl)
 	
 end )
 
--- Hooks Hit Numbers, so that it displays all damage events
-hook.Add( "PostEntityTakeDamage", "hdn_onEntDamage", onEntTakeDamage )
 
 -- Load server settings.
 if not loadSettings() then
 	saveSettings()
 end
+
 
 Msg("-- Hit Numbers loaded --")
 if nWarnings > 0 then

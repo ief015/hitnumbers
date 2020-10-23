@@ -23,10 +23,12 @@ CRIT_MODE.CRITICAL_AND_DMG    = 5
 CRIT_MODE.CRIT_AND_DMG_EX     = 6
 CRIT_MODE.CRITICAL_AND_DMG_EX = 7
 
+
 local function invlerp(min, max, p)
 --	if max-min == 0 then return 0 end
 	return (p - min) / (max - min)
 end
+
 
 local ANIMATION_FUNC = {}
 ANIMATION_FUNC[1] = function(p)
@@ -441,5 +443,6 @@ hook.Add("PopulateToolMenu", "hdn_spawnMenu", function()
 	spawnmenu.AddToolMenuOption("Utilities", "Hit Numbers", "hdn_playerSpawnMenuSettings", "Player", "", "", populateSettingsPlayer)
 	
 end)
+
 
 MsgN("-- Hit Numbers loaded --")
