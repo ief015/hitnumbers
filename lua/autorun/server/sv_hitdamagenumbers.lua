@@ -377,12 +377,12 @@ hook.Add( "PostEntityTakeDamage", "hdn_onPostEntDamage", function(target, dmginf
 			local targetIsNPC    = target:IsNPC()
 
 			-- Check masks.
-			if ( !mask_players and targetIsPlayer )
-			or ( !mask_npcs and targetIsNPC )
-			or ( !mask_ragdolls and target:IsRagdoll() )
-			or ( !mask_vehicles and target:IsVehicle() )
-			or ( !mask_props and entIsProp(target) )
-			or ( !mask_world and entIsWorld(target) )
+			if ( not mask_players and targetIsPlayer )
+			or ( not mask_npcs and targetIsNPC )
+			or ( not mask_ragdolls and target:IsRagdoll() )
+			or ( not mask_vehicles and target:IsVehicle() )
+			or ( not mask_props and entIsProp(target) )
+			or ( not mask_world and entIsWorld(target) )
 			then return end
 
 			local dmgAmount = dmginfo:GetDamage()
