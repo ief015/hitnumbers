@@ -1,15 +1,15 @@
-local indicators = {}
+local indicators  = {}
 local initialized = false
 local lastcurtime = 0
-local on = true
+local on          = true
 
 local debugger = {}
-debugger.enabled = false
-debugger.tickms = 0
-debugger.renderms = 0
-debugger.ticktimer = 0
+debugger.enabled     = false
+debugger.tickms      = 0
+debugger.renderms    = 0
+debugger.ticktimer   = 0
 debugger.rendertimer = 0
-debugger.count = 0
+debugger.count       = 0
 
 local indicatorColors = {}
 
@@ -115,18 +115,18 @@ local function spawnIndicator(text, col, pos, vel, ttl)
 	local ind = {}
 	
 	ind.text = text
-	ind.pos = Vector(pos.x, pos.y, pos.z)
-	ind.vel = Vector(vel.x, vel.y, vel.z)
-	ind.col = Color(col.r, col.g, col.b)
+	ind.pos  = Vector(pos.x, pos.y, pos.z)
+	ind.vel  = Vector(vel.x, vel.y, vel.z)
+	ind.col  = Color(col.r, col.g, col.b)
 	
-	ind.ttl = ttl
-	ind.life = ttl
+	ind.ttl       = ttl
+	ind.life      = ttl
 	ind.spawntime = CurTime()
 	
 	surface.SetFont("font_HDN_Inds")
 	local w, h = surface.GetTextSize(text)
 	
-	ind.widthH = w/2
+	ind.widthH  = w/2
 	ind.heightH = h/2
 	
 	table.insert(indicators, ind)
@@ -139,7 +139,7 @@ local function populateSettingsPlayer(panel)
 	if GetGlobalBool("HDN_AllowUserToggle") then
 		
 		panel:AddControl("Button", {
-			Label = "Toggle Hit Numbers",
+			Label   = "Toggle Hit Numbers",
 			Command = "hitnums_toggle",
 		})
 		
@@ -188,25 +188,28 @@ net.Receive( "hdn_spawn", function()
 	if not on then return end
 	
 	-- Get damage type and amount.
-	local dmg = net.ReadFloat()
+	local dmg     = net.ReadFloat()
 	local dmgtype = net.ReadUInt(32)
 	
-	if dmg < 1 then dmg = math.Round(dmg, 3)
-	else dmg = math.floor(dmg) end
+	if dmg < 1 then
+		dmg = math.Round(dmg, 3)
+	else
+		dmg = math.floor(dmg)
+	end
 	
 	-- Get "critical hit" bit.
 	local crit = (net.ReadBit() ~= 0)
 	
 	-- Retrieve position and force of the damage.
-	local pos = net.ReadVector()
+	local pos   = net.ReadVector()
 	local force = net.ReadVector() * GetGlobalFloat("HDN_ForceInheritance", 1.0)
 	
 	-- Set colour of indicator based on damage type (or critical hit).
 	local col = indicatorColors.gen
 	
-	local ttl         = GetGlobalFloat("HDN_TTL", 1.0)
-	local showsign    = GetGlobalBool("HDN_ShowSign", true)
-	local critmode    = GetGlobalInt("HDN_CritMode", CRIT_MODE.CRITICAL_AND_DMG_EX) -- See "Critical indicator mode" in sv_hitdamagenumbers.lua
+	local ttl      = GetGlobalFloat("HDN_TTL", 1.0)
+	local showsign = GetGlobalBool("HDN_ShowSign", true)
+	local critmode = GetGlobalInt("HDN_CritMode", CRIT_MODE.CRITICAL_AND_DMG_EX) -- See "Critical indicator mode" in sv_hitdamagenumbers.lua
 	
 	local fxmin, fxmax = GetGlobalFloat("HDN_ForceOffset_XMin", -0.5), GetGlobalFloat("HDN_ForceOffset_XMax", 0.5)
 	local fymin, fymax = GetGlobalFloat("HDN_ForceOffset_YMin", -0.5), GetGlobalFloat("HDN_ForceOffset_YMax", 0.5)
@@ -292,8 +295,8 @@ hook.Add( "Tick", "hdn_updateInds", function()
 	if debugger.enabled then debugger.ticktimer = SysTime() end
 	
 	local curtime = CurTime()
-	local dt = curtime - lastcurtime
-	lastcurtime = curtime
+	local dt      = curtime - lastcurtime
+	lastcurtime   = curtime
 	
 	if #indicators == 0 then return end
 	
@@ -302,11 +305,11 @@ hook.Add( "Tick", "hdn_updateInds", function()
 	-- Update hit texts.
 	local ind
 	for i=1, #indicators do
-		ind = indicators[i]
-		ind.life = ind.life - dt
+		ind       = indicators[i]
+		ind.life  = ind.life - dt
 	--  ind.vel.z = math.Min(ind.vel.z - 0.05, 2)
 		ind.vel.z = ind.vel.z - gravity
-		ind.pos = ind.pos + ind.vel
+		ind.pos   = ind.pos + ind.vel
 	end
 	
 	-- Check for and remove expired hit texts.

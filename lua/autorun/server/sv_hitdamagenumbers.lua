@@ -304,7 +304,7 @@ local function entIsWorld(ent)
 	local class = ent:GetClass()
 	
 	return string.StartWith(class, "func_")
-		or string.StartWith(class, "prop_door")
+	    or string.StartWith(class, "prop_door")
 	
 end
 
@@ -312,7 +312,9 @@ end
 local function entIsProp(ent)
 	
 	local class = ent:GetClass()
-	return string.StartWith(class, "prop_dynamic") or string.StartWith(class, "prop_physics")
+	
+	return string.StartWith(class, "prop_dynamic")
+	    or string.StartWith(class, "prop_physics")
 	
 end
 
@@ -350,90 +352,104 @@ local function spawnIndicator(dmgAmount, dmgType, dmgPosition, dmgForce, isCrit,
 end
 
 
+hook.Add( "EntityTakeDamage", "hdn_onEntDamage_recordLastHealth", function(target, dmginfo)
+	
+	-- This is needed to determine if a player/entity had a health pool
+	-- before being killed. Used in "hdn_onEntDamage" hook.
+	
+	-- This is awful, inelegant, and I hate it. But, it does work.
+	-- This solution is temporary until I can find a better way around this. Thankfully, this
+	-- is a fairly lightweight bandaid fix and overhead should be tiny, especially since an
+	-- entity's lua table is serverside only.
+	
+	if not on then return end
+	if not target:IsValid() then return end
+	if target:GetCollisionGroup() == COLLISION_GROUP_DEBRIS then return end
+	
+	target.hdn_lastHealth = target:Health()
+	
+end )
+
+
 hook.Add( "PostEntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 	
 	if not on then return end
+	if not target:IsValid() then return end
+	if target:GetCollisionGroup() == COLLISION_GROUP_DEBRIS then return end
 	
-	if target:IsValid() then
+	local attacker         = dmginfo:GetAttacker()
+	local attackerIsPlayer = attacker:IsPlayer()
 	
-		local attacker = dmginfo:GetAttacker()
-		local attackerIsPlayer = attacker:IsPlayer()
+	if not ( attackerIsPlayer or showAll ) then return end
+	if not ( not breakablesOnly or target.hdn_lastHealth > 0 ) then return end
+	if not ( attacker ~= target or showAll ) then return end
+	
+	local targetIsPlayer = target:IsPlayer()
+	local targetIsNPC    = target:IsNPC()
+	
+	-- Check masks.
+	if ( not mask_players and targetIsPlayer )
+	or ( not mask_npcs and targetIsNPC )
+	or ( not mask_ragdolls and target:IsRagdoll() )
+	or ( not mask_vehicles and target:IsVehicle() )
+	or ( not mask_props and entIsProp(target) )
+	or ( not mask_world and entIsWorld(target) )
+	then return end
+	
+	local dmgAmount = dmginfo:GetDamage()
+	local dmgType   = dmginfo:GetDamageType()
+	
+	-- Get damage position.
+	local pos = nil
+	if dmginfo:IsBulletDamage() then
 		
-		if  ( attackerIsPlayer or showAll )
-		and ( !breakablesOnly or target:Health() > 0 )
-		and ( target:GetCollisionGroup() ~= COLLISION_GROUP_DEBRIS )
-		and ( attacker != target or showAll )
-		then
-			
-			local targetIsPlayer = target:IsPlayer()
-			local targetIsNPC    = target:IsNPC()
-			
-			-- Check masks.
-			if ( !mask_players and targetIsPlayer )
-			or ( !mask_npcs and targetIsNPC )
-			or ( !mask_ragdolls and target:IsRagdoll() )
-			or ( !mask_vehicles and target:IsVehicle() )
-			or ( !mask_props and entIsProp(target) )
-			or ( !mask_world and entIsWorld(target) )
-			then return end
-			
-			local dmgAmount = dmginfo:GetDamage()
-			local dmgType   = dmginfo:GetDamageType()
-			
-			-- Get damage position.
-			local pos = nil
-			if dmginfo:IsBulletDamage() then
-				
-				pos = dmginfo:GetDamagePosition()
-				
-			elseif (attackerIsPlayer or attacker:IsNPC()) and (dmgType == DMG_CLUB or dmgType == DMG_SLASH) then
-				
-				pos = util.TraceHull({
-					start  = attacker:GetShootPos(),
-					endpos = attacker:GetShootPos() + (attacker:GetAimVector() * 100),
-					filter = attacker,
-					mins   = Vector(-10,-10,-10),
-					maxs   = Vector( 10, 10, 10),
-					mask   = MASK_SHOT_HULL,
-				}).HitPos
-				
-			end
-			
-			if pos == nil then
-				
-				-- Default damage position if no damage position could be calculated.
-				pos = target:LocalToWorld(target:OBBCenter())
-				
-			end
-			
-			-- Get force of damage.
-			local force = nil
-			if dmginfo:IsExplosionDamage() then
-				force = dmginfo:GetDamageForce() / 4000
-			else
-				force = -dmginfo:GetDamageForce() / 1000
-			end
-			force.x = math.Clamp(force.x, -1, 1)
-			force.y = math.Clamp(force.y, -1, 1)
-			force.z = math.Clamp(force.z, -1, 1)
-			
-			-- Is it a critical hit? (For players and npcs only)
-			local isCrit = (dmgAmount >= target:GetMaxHealth()) and
-			               (targetIsPlayer or targetIsNPC)
-			
-			-- Create and send the indicator to players.
-			if showAll then
-				if targetIsPlayer then
-					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, nil)
-				else
-					spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, nil, nil)
-				end
-			else
-				spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, attacker)
-			end
-			
+		pos = dmginfo:GetDamagePosition()
+		
+	elseif (attackerIsPlayer or attacker:IsNPC()) and
+		   (dmgType == DMG_CLUB or dmgType == DMG_SLASH) then
+		
+		pos = util.TraceHull({
+			start  = attacker:GetShootPos(),
+			endpos = attacker:GetShootPos() + (attacker:GetAimVector() * 100),
+			filter = attacker,
+			mins   = Vector(-10,-10,-10),
+			maxs   = Vector( 10, 10, 10),
+			mask   = MASK_SHOT_HULL,
+		}).HitPos
+		
+	end
+	
+	if pos == nil then
+		
+		-- Default damage position if no damage position could be calculated.
+		pos = target:LocalToWorld(target:OBBCenter())
+		
+	end
+	
+	-- Get force of damage.
+	local force = nil
+	if dmginfo:IsExplosionDamage() then
+		force = dmginfo:GetDamageForce() / 4000
+	else
+		force = -dmginfo:GetDamageForce() / 1000
+	end
+	force.x = math.Clamp(force.x, -1, 1)
+	force.y = math.Clamp(force.y, -1, 1)
+	force.z = math.Clamp(force.z, -1, 1)
+	
+	-- Is it a critical hit? (For players and npcs only)
+	local isCrit = (dmgAmount >= target:GetMaxHealth()) and
+				   (targetIsPlayer or targetIsNPC)
+	
+	-- Create and send the indicator to players.
+	if showAll then
+		if targetIsPlayer then
+			spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, nil)
+		else
+			spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, nil, nil)
 		end
-		
+	else
+		spawnIndicator(dmgAmount, dmgType, pos, force, isCrit, target, attacker)
 	end
 	
 end )
