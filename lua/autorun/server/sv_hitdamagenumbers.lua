@@ -381,7 +381,11 @@ hook.Add( "PostEntityTakeDamage", "hdn_onEntDamage", function(target, dmginfo)
 	local attackerIsPlayer = attacker:IsPlayer()
 	
 	if not ( attackerIsPlayer or showAll ) then return end
-	if not ( not breakablesOnly or target.hdn_lastHealth > 0 ) then return end
+	if target.hdn_lastHealth == nil then
+		if not ( not breakablesOnly or target:Health() > 0 ) then return end
+	else
+		if not ( not breakablesOnly or target.hdn_lastHealth > 0 ) then return end
+	end
 	if not ( attacker ~= target or showAll ) then return end
 	
 	local targetIsPlayer = target:IsPlayer()
